@@ -183,8 +183,8 @@ function readUrl(id, idx) {
 /* ================= 导入 ================= */
 
 async function importFiles(files) {
-  const list = [...files].filter((f) => /\.(epub|txt)$/i.test(f.name));
-  if (!list.length) return toast("只支持 .epub 和 .txt", true);
+  const list = [...files].filter((f) => /\.(epub|mobi|azw|prc|txt)$/i.test(f.name));
+  if (!list.length) return toast("只支持 .epub / .mobi / .txt", true);
   let ok = 0;
   for (const f of list) {
     const fd = new FormData();

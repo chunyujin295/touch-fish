@@ -11,6 +11,7 @@ cargo run                     # 直接开一个原生窗口（推荐）
 cargo run -- --server         # 只起本地服务，用浏览器打开 http://127.0.0.1:7317/
 cargo run -- --server --open  # 起服务并自动开浏览器
 cargo run --release           # 正式版，单文件，双击即可
+cargo test                    # 解析层的单元测试（MOBI 解压、UTF-8 跨记录）
 ```
 
 打包发给别人：
@@ -20,7 +21,7 @@ tools/package.sh              # 编译 release 并压成 dist/TouchFish-<版本>
 tools/package.sh --no-build   # 复用已有产物，只重新打包
 ```
 
-首次导入：把 `.epub` / `.txt` 拖进窗口，或点右上角「导入书籍」。
+首次导入：把 `.epub` / `.mobi` / `.txt` 拖进窗口，或点右上角「导入书籍」。
 
 窗口只是壳，界面仍然是那个本地服务——所以：
 - 关闭窗口（X）= 退出进程，窗口大小/位置/是否最大化会记住（`window.json`）
@@ -55,6 +56,9 @@ src/
   desktop.rs     原生窗口（wry + tao + WebView2）、窗口状态记忆、托盘、全局热键、Boss Key 收起
   model.rs       Block / Chapter / Book —— 唯一的中立内容模型
   epub.rs        EPUB：container → OPF → spine → Block
+  mobi.rs        MOBI/AZW：PalmDB → PalmDOC 解压 → HTML → Block
+  html.rs        共用的 HTML → Block 解析器（EPUB 与 MOBI 都走它）
+  media.rs       图片落盘（按内容哈希命名）
   txtbook.rs     TXT：编码探测 → 章节切分 → 段落
   library.rs     书库、进度、设置（纯 JSON 文件，无数据库）
   noise.rs       可复现噪声（seed 由书+章+皮肤+主题包决定）
@@ -69,7 +73,7 @@ assets/
 prototypes/      早期静态原型（8 套皮肤 + 主题包实验台），保留作设计存档
 docs/            PRD、主题包设计文档
 samples/         测试用样书（虚构的《分布式系统手记》）
-tools/           生成样书的脚本、打包脚本（package.sh）
+tools/           生成样书的脚本（epub / mobi）、打包脚本（package.sh）
 ```
 
 ## 架构：三层匹配
@@ -79,7 +83,7 @@ tools/           生成样书的脚本、打包脚本（package.sh）
 内科学·心血管章  →   丁香园论坛版式   →   心血管版·病例讨论
 ```
 
-- **解析层**只产出 `Block` 序列（段落 / 标题 / 引用 / 代码 / 列表 / 图片 / 表格 / 分隔线）。
+- **解析层**只产出 `Block` 序列（EPUB 与 MOBI 共用 html.rs 里的同一个解析器，只有"图片从哪来"不同）（段落 / 标题 / 引用 / 代码 / 列表 / 图片 / 表格 / 分隔线）。
 - **渲染层**把 `Block` + 站点描述 + 主题包拼成一张完整 HTML，服务端直出，不靠前端拼内容。
 - **皮肤**只决定"长什么样"（版式 + accent + 宽度 + 顶栏明暗），**主题包**只决定"聊什么"（导航、推荐池、广告池、评论语气、术语口径、禁忌词）。
 
@@ -91,6 +95,7 @@ tools/           生成样书的脚本、打包脚本（package.sh）
 | 能力 | 状态 |
 |---|---|
 | EPUB 解析（container/OPF/spine/nav/ncx/图片提取/封面） | ✅ |
+| MOBI / PRC / AZW 解析（PalmDOC 解压、EXTH 元信息、pagebreak 分章、recindex 取图） | ✅ |
 | TXT 解析（GBK/Gb18030/UTF-8 探测、`第N章` 切分、`《书名》作者.txt` 取名、开头版权页并入首章并剔除） | ✅ |
 | 书库界面（封面、进度、搜索、拖拽导入、章节抽屉） | ✅ |
 | 13 个站点皮肤 × 3 种版式（blog / forum / acad） | ✅ |
@@ -126,6 +131,9 @@ tools/           生成样书的脚本、打包脚本（package.sh）
 - 站点皮肤复用了同一套版式骨架，CSDN 与掘金只在配色与宽度上区分；细节件已做 8 处，但都是模板级（写进 `sites.json`），不是真站点那种完整侧栏结构。
 - 学术版式的摘要卡是合成的模板文案，不是真摘要；接入本地 LLM 后可换成真摘要（M3，未做）。
 - EPUB 的脚注、公式（MathML）仍会被压平；行内格式（粗体/斜体/链接/行内代码）已支持。
+- MOBI 只支持 PalmDOC 与不压缩两种；**HUFF/CDIC 压缩**（AZW 常见）与 **DRM 加密**会直接报错并提示用 Calibre 转换，不会读成乱码。
+- MOBI 的 KF8/AZW3（v8 容器）正文不在老位置，解析不到内容时会给出同样的转换提示。
+- MOBI 的封面与目录索引没有单独提取：封面用默认渐变封面，目录用解析出的标题顶替。
 - 只有 CSDN 与博客园开了文章分页（它们真实站点就这么干），其余站点仍是单页到底。
 - 章节名超过 30 字会被截断加省略号（真实帖子标题没那么长），完整章节名在书库抽屉里能看到。
 - 桌面壳在 Linux 上走 WebKitGTK，代码是跨平台的，但只在 Windows 上实测过。

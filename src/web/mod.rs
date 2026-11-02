@@ -206,8 +206,11 @@ async fn import(
             .next()
             .unwrap_or("")
             .to_lowercase();
-        if ext != "epub" && ext != "txt" {
-            return Err(bad(format!("暂不支持 .{ext}，目前只吃 epub / txt")));
+        let supported = ["epub", "mobi", "prc", "azw", "txt"];
+        if !supported.contains(&ext.as_str()) {
+            return Err(bad(format!(
+                "暂不支持 .{ext}，目前支持 epub / mobi / azw / txt"
+            )));
         }
         let bytes = field.bytes().await.map_err(bad)?;
         if bytes.is_empty() {
@@ -242,6 +245,8 @@ async fn import(
         let parsed = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             if ext == "epub" {
                 crate::epub::parse(&tmp, &id, &media_dir)
+            } else if ext == "mobi" || ext == "prc" || ext == "azw" {
+                crate::mobi::parse(&tmp, &id, &media_dir)
             } else {
                 crate::txtbook::parse(&tmp, &id, &filename)
             }

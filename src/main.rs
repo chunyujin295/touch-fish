@@ -6,7 +6,10 @@
 #[cfg(feature = "gui")]
 mod desktop;
 mod epub;
+mod html;
 mod library;
+mod media;
+mod mobi;
 mod model;
 mod noise;
 mod txtbook;

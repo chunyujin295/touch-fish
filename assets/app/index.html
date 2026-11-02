@@ -64,7 +64,7 @@
         <div class="ea-book"></div><div class="ea-book b2"></div><div class="ea-book b3"></div>
       </div>
       <h2>书库还是空的</h2>
-      <p>把 <b>.epub</b> 或 <b>.txt</b> 拖进这个窗口，或者点右上角的「导入书籍」。<br>书只存在你本机的数据目录里，不上传任何地方。</p>
+      <p>把 <b>.epub</b> / <b>.mobi</b> / <b>.txt</b> 拖进这个窗口，或者点右上角的「导入书籍」。<br>书只存在你本机的数据目录里，不上传任何地方。</p>
       <button class="btn primary" onclick="document.getElementById('fileInput').click()">选择文件</button>
     </div>
   </section>
@@ -154,7 +154,7 @@
   </div>
 </aside>
 
-<input type="file" id="fileInput" accept=".epub,.txt" multiple hidden>
+<input type="file" id="fileInput" accept=".epub,.mobi,.azw,.prc,.txt" multiple hidden>
 <div class="dropmask hidden" id="dropmask"><div class="dm-in">松开即导入</div></div>
 <div class="toast" id="toast"></div>
 
