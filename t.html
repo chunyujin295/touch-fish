@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>关于「第四章 一次完整的排查记录」的几点笔记 - CSDN</title>
+<meta name="description" content="关于「第四章 一次完整的排查记录」的几点笔记">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%23fc5531'/><text x='16' y='23' font-size='17' font-family='system-ui,sans-serif' fill='white' text-anchor='middle'>C</text></svg>">
+<style>/* ============ 基础层：所有站点共用的骨架与组件 ============ */
+:root{
+  --a:#fc5531;
+  --as:rgba(252,85,49,.08);
+  --ab:rgba(252,85,49,.20);
+  --ink:#1f2937;
+  --ink2:#475467;
+  --ink3:#98a2b3;
+  --line:#e7eaee;
+  --bg:#f5f6f8;
+  --card:#fff;
+  --w:1180px;
+  --r:8px;
+  --lh:1.9;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif;
+  background:var(--bg);color:var(--ink);font-size:14px;line-height:1.65;
+  -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+}
+a{color:inherit;text-decoration:none}
+img{max-width:100%;height:auto;display:block}
+b,strong{font-weight:600}
+::selection{background:var(--as);color:var(--a)}
+
+/* 顶部阅读进度条（类名不能叫 .rp：论坛楼层里的"举报"链接用了 .rp） */
+.rprog{position:fixed;left:0;top:0;height:2px;width:100%;z-index:99;background:transparent}
+.rprog i{display:block;height:100%;background:var(--a);transition:width .3s;opacity:.9}
+
+/* ============ 顶栏 ============ */
+.hd{border-bottom:1px solid var(--line);background:#fff;position:sticky;top:0;z-index:50}
+.hd.dk{background:#1f2937;border-color:#1f2937}
+.hd-in{max-width:var(--w);margin:0 auto;padding:0 22px;height:56px;display:flex;align-items:center;gap:22px}
+.lg{display:flex;align-items:center;gap:9px;font-size:15.5px;font-weight:700;letter-spacing:-.2px;flex:0 0 auto}
+.lg .mk{width:26px;height:26px;border-radius:6px;background:var(--a);color:#fff;display:flex;align-items:center;
+  justify-content:center;font-size:13px;font-weight:700}
+.lg b{color:var(--ink)}
+.hd.dk .lg b{color:#fff}
+.lg .tagx{font-size:10.5px;font-weight:500;color:var(--a);background:var(--as);border-radius:3px;padding:0 5px}
+.hd.dk .lg .tagx{color:#cbd5e1;background:rgba(255,255,255,.12)}
+.nav{display:flex;gap:2px;flex:1;overflow:hidden}
+.nav a{font-size:13px;color:var(--ink2);padding:5px 10px;border-radius:5px;white-space:nowrap}
+.nav a:hover{background:var(--as);color:var(--a)}
+.nav a.on{color:var(--a);background:var(--as);font-weight:600}
+.hd.dk .nav a{color:#c9d2df}
+.hd.dk .nav a.on{color:#fff;background:rgba(255,255,255,.1)}
+.hd-r{display:flex;align-items:center;gap:11px;flex:0 0 auto}
+.sbox{width:150px;height:30px;border:1px solid #e3e7ec;border-radius:15px;background:#f8f9fb;color:var(--ink3);
+  font-size:12px;display:flex;align-items:center;padding:0 11px;gap:6px;overflow:hidden;white-space:nowrap}
+.hd.dk .sbox{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.14);color:#9aa5b4}
+.write{background:var(--a);color:#fff;font-size:12.5px;padding:5px 12px;border-radius:5px;font-weight:500}
+.av{width:27px;height:27px;border-radius:50%;background:var(--as);color:var(--a);display:flex;align-items:center;
+  justify-content:center;font-size:12px;font-weight:600;flex:0 0 27px}
+.hd.dk .av{background:rgba(255,255,255,.12);color:#e5e7eb}
+
+/* 公告条 */
+.ntc{background:#fffaf0;border-bottom:1px solid #f4e8d0;font-size:12.5px;color:#8a6320}
+.ntc-in{max-width:var(--w);margin:0 auto;padding:7px 22px;display:flex;align-items:center;gap:9px}
+.ntc b{background:#f0b429;color:#fff;font-size:10.5px;padding:1px 5px;border-radius:3px;font-weight:600;flex:0 0 auto}
+.ntc .x{margin-left:auto;color:#c9b48a}
+
+/* ============ 主体 ============ */
+.grid{display:grid;grid-template-columns:minmax(0,1fr) 292px;gap:26px;
+  max-width:var(--w);margin:0 auto;padding:18px 22px 34px;align-items:start}
+.crumb{font-size:12.5px;color:var(--ink3);margin-bottom:15px;display:flex;gap:7px;flex-wrap:wrap;align-items:center}
+.crumb span{color:var(--ink2)}
+.crumb .sep{color:#d0d5dd}
+
+h1.pt{font-size:24px;line-height:1.45;font-weight:700;letter-spacing:-.4px;margin-bottom:12px}
+.mt{display:flex;align-items:center;gap:14px;font-size:12.5px;color:var(--ink3);flex-wrap:wrap;
+  padding-bottom:14px;border-bottom:1px solid #f0f2f5;margin-bottom:20px}
+.mt .au{display:flex;align-items:center;gap:7px;color:var(--ink2);font-weight:500}
+.mt .au .av{width:22px;height:22px;flex:0 0 22px;font-size:11px}
+.mt .ro{background:#f4f5f7;border-radius:3px;padding:1px 6px;font-size:11px;color:#667085}
+.mt .sp{margin-left:auto;display:flex;gap:13px}
+.mt .sp b{font-weight:500;color:var(--ink2)}
+
+/* 正文 */
+.prose{font-size:16px;line-height:var(--lh);color:#1f2937;word-break:break-word}
+.prose p{margin:0 0 18px}
+/* 行内格式：粗体、斜体、行内代码、外链。电子书里这四样出现频率最高 */
+.prose b,.prose strong{font-weight:600;color:#111827}
+.prose i,.prose em{font-style:italic;color:inherit}
+.prose a{color:var(--a);text-decoration:none;border-bottom:1px solid var(--ab)}
+.prose a:hover{border-bottom-color:var(--a)}
+.prose code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:.9em;
+  background:var(--as);color:var(--a);border-radius:3px;padding:1px 5px;word-break:break-all}
+.prose h2{font-size:17.5px;font-weight:700;margin:28px 0 13px;padding-left:11px;border-left:3px solid var(--a);line-height:1.5}
+.prose h3{font-size:16px;font-weight:700;margin:22px 0 10px;color:#111827}
+.prose blockquote.q{border-left:3px solid #dfe3e8;background:#fafbfc;padding:12px 16px;border-radius:0 5px 5px 0;
+  color:var(--ink2);font-size:15px;margin:0 0 18px;line-height:1.85}
+.prose ul,.prose ol{margin:0 0 18px;padding-left:2px;list-style:none}
+.prose ol{counter-reset:n}
+.prose ul li{position:relative;padding-left:19px;margin-bottom:8px}
+.prose ul li:before{content:"";position:absolute;left:3px;top:11px;width:5px;height:5px;border-radius:50%;
+  background:var(--a);opacity:.55}
+.prose ol li{position:relative;padding-left:24px;margin-bottom:8px;counter-increment:n}
+.prose ol li:before{content:counter(n)".";position:absolute;left:2px;top:0;color:var(--a);font-size:13px;font-weight:600}
+.prose hr.hr{border:none;border-top:1px solid var(--line);margin:26px 0}
+.prose figure.fig{margin:0 0 18px}
+.prose figure.fig img{border-radius:6px;border:1px solid var(--line);margin:0 auto}
+
+/* 代码块 */
+.code{border:1px solid #e6e9ee;border-radius:6px;overflow:hidden;margin:0 0 18px;background:#fbfcfd}
+.code-h{background:#f5f7f9;border-bottom:1px solid #e6e9ee;padding:5px 12px;display:flex;gap:10px;
+  font-size:11.5px;color:var(--ink3);font-family:ui-monospace,Consolas,monospace}
+.code-h .l{color:var(--a);font-weight:600}
+.code-h .cp{margin-left:auto}
+.code pre{padding:13px 15px;overflow-x:auto;font-family:ui-monospace,SFMono-Regular,Consolas,"Cascadia Mono",monospace;
+  font-size:12.5px;line-height:1.78;color:#24292f;white-space:pre;tab-size:2}
+
+/* 表格 */
+.tbl{width:100%;border-collapse:collapse;font-size:14px;margin:0 0 18px;background:#fff}
+.tbl th,.tbl td{border:1px solid #e6e9ee;padding:8px 11px;text-align:left;vertical-align:top}
+.tbl th{background:#f8f9fb;font-weight:600;color:var(--ink2);font-size:13px}
+
+/* 标签 / 版权 / 操作 */
+.tags{display:flex;gap:7px;flex-wrap:wrap;margin:22px 0 0}
+.tags a{font-size:12px;background:#f4f5f7;color:#667085;border-radius:3px;padding:3px 9px}
+.tags a:hover{background:var(--as);color:var(--a)}
+.cpr{margin-top:20px;border-top:1px dashed #e6e9ee;padding-top:13px;font-size:12px;color:var(--ink3);line-height:1.85}
+.acts{display:flex;gap:12px;margin:22px 0 6px;font-size:13px;color:#667085}
+.acts .act{border:1px solid #e3e7ec;border-radius:19px;padding:5px 15px;display:flex;gap:6px;align-items:center}
+.acts .act.pri{border-color:var(--a);color:var(--a);background:var(--as);font-weight:500}
+
+/* 评论区 */
+.cm{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:18px 20px;margin-top:24px}
+.cm-h{font-size:14px;font-weight:600;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.cm-h span{font-size:12px;color:var(--ink3);font-weight:400}
+.cmt{display:flex;gap:11px;padding:13px 0;border-top:1px solid #f2f4f7}
+.cmt:first-child{border-top:none;padding-top:0}
+.cmt .av{width:30px;height:30px;flex:0 0 30px;font-size:12px}
+.cb{flex:1;min-width:0}
+.ch{display:flex;gap:9px;align-items:baseline;font-size:12.5px;color:var(--ink3);margin-bottom:4px;flex-wrap:wrap}
+.ch b{color:#344054;font-size:13px;font-weight:600}
+.ch .lk{margin-left:auto;color:#b0b8c4}
+.cb p{font-size:14px;line-height:1.8;color:#344054}
+
+/* 论坛楼层 */
+.fl{display:flex;gap:13px;padding:20px 0;border-top:1px solid #eef0f3}
+.fl:first-child{border-top:none;padding-top:6px}
+.lf{display:flex;flex-direction:column;align-items:center;gap:7px;flex:0 0 44px}
+.lf .av{width:42px;height:42px;flex:0 0 42px;font-size:15px;border-radius:7px}
+.lf .no{font-size:11px;color:#b0b8c4;font-family:ui-monospace,Consolas,monospace}
+.rb{flex:1;min-width:0}
+.rh{display:flex;gap:9px;align-items:center;font-size:12.5px;color:var(--ink3);margin-bottom:7px;flex-wrap:wrap}
+.rh b{color:#1f2937;font-size:13.5px;font-weight:600}
+.rh .ro{background:var(--as);color:var(--a);border-radius:3px;padding:1px 6px;font-size:11px}
+.rh .rp{margin-left:auto;color:#b0b8c4;font-size:12px}
+.rx{font-size:15px;line-height:1.88;color:#344054}
+.rf{margin-top:8px;display:flex;gap:14px;font-size:12px;color:#b0b8c4}
+.replybox{margin-top:20px;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:#fff}
+.replybox .rbh{background:#f8f9fb;border-bottom:1px solid var(--line);padding:7px 12px;font-size:12px;
+  color:var(--ink3);display:flex;gap:12px}
+.replybox .rbh b{color:var(--ink2);font-weight:500}
+.replybox .rbx{margin-left:auto;color:var(--a)}
+.replybox .rbb{padding:12px;font-size:13px;color:#b0b8c4;height:56px}
+
+/* 侧栏 */
+.side{display:flex;flex-direction:column;gap:16px;position:sticky;top:76px}
+.mod{border:1px solid var(--line);border-radius:var(--r);overflow:hidden;background:var(--card)}
+.mod-h{padding:10px 14px;font-size:13px;font-weight:600;border-bottom:1px solid #f0f2f5;display:flex;align-items:center;gap:7px}
+.mod-h:before{content:"";width:3px;height:12px;border-radius:2px;background:var(--a)}
+.mod-b{padding:8px 14px 12px}
+.item{display:flex;gap:8px;padding:5px 0;font-size:13px;color:var(--ink2);line-height:1.5}
+.item .n{flex:0 0 15px;height:15px;border-radius:3px;font-size:10.5px;text-align:center;line-height:15px;
+  background:#f2f4f7;color:var(--ink3);font-family:ui-monospace,Consolas,monospace;margin-top:2px}
+.item .n.t{background:var(--a);color:#fff}
+.item:hover{color:var(--a)}
+.item .tx{flex:1;min-width:0}
+.item .em{color:#c0c7d1;font-size:11px;flex:0 0 auto;margin-left:6px;white-space:nowrap;margin-top:1px}
+.tagp{display:flex;gap:7px;flex-wrap:wrap;padding:2px 0 4px}
+.tagp a{font-size:12px;background:#f6f7f9;color:#667085;border-radius:3px;padding:3px 9px}
+.tagp a:hover{background:var(--as);color:var(--a)}
+
+/* 广告 */
+.ad{position:relative;border:1px solid var(--line);border-radius:var(--r);padding:13px 14px 14px;background:var(--card)}
+.ad:after{content:"广告";position:absolute;right:9px;top:9px;font-size:10px;color:#c0c7d1;
+  border:1px solid var(--line);border-radius:2px;padding:0 3px;line-height:1.4}
+.ad .adt{font-size:13.5px;font-weight:600;color:var(--ink);margin-bottom:5px;padding-right:34px;line-height:1.5}
+.ad .add{font-size:12px;color:var(--ink3);line-height:1.6;margin-bottom:10px}
+.ad .adc{font-size:12px;color:var(--a);font-weight:500}
+.ad.hl{background:linear-gradient(150deg,var(--as),var(--card) 72%);border-color:var(--ab)}
+.ad-inline{display:flex;gap:14px;align-items:center;padding:14px 16px;background:#fafbfc;
+  border:1px solid var(--line);border-radius:7px;position:relative}
+.ad-inline .ic{width:64px;height:46px;border-radius:5px;background:linear-gradient(140deg,var(--a),var(--ab));
+  flex:0 0 64px;opacity:.85}
+.ad-inline .ax{flex:1;min-width:0}
+.ad-inline .adt{font-size:13px;font-weight:600;color:var(--ink);margin-bottom:3px}
+.ad-inline .add{font-size:12px;color:var(--ink3);line-height:1.6}
+.ad-inline .adc{margin-left:auto;flex:0 0 auto;white-space:nowrap;font-size:12px;color:var(--a)}
+.adslot:empty{display:none}
+
+/* 翻页 */
+.pager{display:flex;align-items:center;gap:10px;margin-top:26px;justify-content:space-between}
+.pg{font-size:13px;color:var(--ink2);border:1px solid var(--line);background:var(--card);
+  border-radius:6px;padding:6px 14px}
+.pg:hover{color:var(--a);border-color:var(--ab)}
+.pg.off{color:#c8cdd6;background:#fafbfc}
+.pg-info{font-size:11.5px;color:#c0c7d1;font-family:ui-monospace,Consolas,monospace;letter-spacing:.5px}
+
+/* 文章分页条（CSDN / 博客园那种「1 2 3 下一页」） */
+.pgbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:24px 0 0;
+  padding-top:16px;border-top:1px solid var(--line);font-size:12.5px}
+.pgbar .lbl{color:#b0b8c4;margin-right:auto;font-size:11.5px}
+.pgbar .nums{display:inline-flex;align-items:center;gap:4px}
+.pgbar .nums a,.pgbar .nums b{display:inline-block;min-width:26px;text-align:center;
+  border:1px solid var(--line);border-radius:4px;padding:4px 7px;color:var(--ink2);
+  background:var(--card);font-weight:400}
+.pgbar .nums b{background:var(--a);border-color:var(--a);color:#fff;font-weight:600}
+.pgbar .nums i{font-style:normal;color:#c8cdd6;padding:0 2px}
+.pgbar .pn{border:1px solid var(--line);border-radius:4px;padding:4px 11px;color:var(--ink2);
+  background:var(--card)}
+.pgbar .pn.off{color:#c8cdd6;background:#fafbfc}
+
+/* 页脚 */
+.ft{border-top:1px solid var(--line);background:var(--card);margin-top:14px}
+.ft-in{max-width:var(--w);margin:0 auto;padding:18px 22px 26px;font-size:11.5px;color:#b0b8c4;
+  line-height:1.9;text-align:center}
+
+/* 快捷键提示浮层：只有按 ? 才出现，平时不占地方 */
+#kbd{position:fixed;right:22px;bottom:22px;z-index:99;width:272px;
+  background:rgba(23,26,31,.94);color:#e6e9ef;border-radius:10px;padding:14px 16px 12px;
+  font-size:12.5px;line-height:1.55;box-shadow:0 14px 36px rgba(0,0,0,.30)}
+#kbd b{display:block;font-size:11.5px;letter-spacing:2px;color:#fff;margin-bottom:9px;
+  font-weight:600;text-transform:uppercase}
+#kbd .kr{display:flex;gap:10px;margin:3px 0}
+#kbd .kr i{flex:0 0 54px;font-style:normal;font-family:ui-monospace,Consolas,monospace;
+  color:#ffd479;font-size:12px}
+#kbd .kr span{flex:1;color:#c7ccd6}
+#kbd em{display:block;margin-top:10px;padding-top:9px;border-top:1px solid rgba(255,255,255,.13);
+  font-style:normal;font-size:11px;color:#8b93a1;line-height:1.5}
+/* 博客版式：正文白卡 + 右侧栏，最通用的一种 */
+body.ly-blog main{
+  background:#fff;border:1px solid var(--line);border-radius:var(--r);
+  padding:26px 30px 30px;
+}
+body.ly-blog .acts{margin-top:24px}
+body.ly-blog .cm{border:1px solid var(--line);background:#fff}
+body.ly-blog .pager{margin-top:22px}
+
+@media (max-width:900px){
+  body.ly-blog .grid{grid-template-columns:1fr}
+  body.ly-blog .side{position:static;flex-direction:row;flex-wrap:wrap}
+  body.ly-blog .side>*{flex:1 1 260px}
+}
+/* 站点层：只改"这家站长的样子"，不改骨架。
+   想加一个新站点，这里加一段 + sites.json 加一条即可。 */
+
+body.s-csdn{--a:#fc5531;--as:rgba(252,85,49,.08);--ab:rgba(252,85,49,.20);--w:1180px;--r:8px}
+body.s-juejin{--a:#1e80ff;--as:rgba(30,128,255,.08);--ab:rgba(30,128,255,.20);--w:1160px;--r:4px}
+body.s-juejin .prose{font-size:16.5px}
+body.s-zhihu{--a:#0084ff;--as:rgba(0,132,255,.08);--ab:rgba(0,132,255,.18);--w:1040px;--r:4px}
+body.s-zhihu .prose{font-size:16.5px;line-height:1.95}
+body.s-cnblogs{--a:#2f9e4f;--as:rgba(47,158,79,.08);--ab:rgba(47,158,79,.20);--w:1140px;--r:3px}
+body.s-wechat{--a:#07c160;--as:rgba(7,193,96,.08);--ab:rgba(7,193,96,.18);--w:900px;--r:2px;--line:#eaeaea}
+body.s-wechat .grid{grid-template-columns:minmax(0,1fr);gap:0}
+body.s-wechat .side{display:none}
+body.s-wechat main{border:none;border-radius:0;padding:24px 8px 28px}
+body.s-wechat h1.pt{font-size:22px;letter-spacing:0}
+body.s-wechat .prose{font-size:16px;line-height:1.95;letter-spacing:.3px}
+body.s-wechat .ntc{display:none}
+body.s-github{--a:#0969da;--as:rgba(9,105,218,.08);--ab:rgba(9,105,218,.20);--w:1012px;--r:6px;--line:#d0d7de}
+body.s-github .prose{font-size:15.5px}
+body.s-github .prose h2{border-left:none;padding-left:0;padding-bottom:6px;border-bottom:1px solid #d8dee4;font-size:19px}
+body.s-github .cm-h:before{display:none}
+body.s-stackoverflow{--a:#f48024;--as:rgba(244,128,36,.08);--ab:rgba(244,128,36,.20);--w:1100px;--r:3px;--line:#d6d9dc}
+body.s-stackoverflow .prose{font-size:15px}
+body.s-confluence{--a:#0052cc;--as:rgba(0,82,204,.08);--ab:rgba(0,82,204,.20);--w:1120px;--r:3px}
+body.s-confluence .prose h2{border-left:none;padding-left:0;padding-bottom:6px;border-bottom:1px solid var(--line)}
+body.s-confluence .cpr{display:none}
+body.s-dxy{--a:#0891b2;--as:rgba(8,145,178,.08);--ab:rgba(8,145,178,.20);--w:1140px}
+body.s-xuekan{--a:#8a6a2f;--as:rgba(138,106,47,.10);--ab:rgba(138,106,47,.24);--w:1140px}
+body.s-xuekan .hd.dk .lg .mk{background:linear-gradient(140deg,#c8a15a,#8f6d2f)}
+body.s-xuekan .hd.dk .lg .tagx{color:#e5c07b;background:rgba(229,192,123,.14)}
+body.s-xuekan .prose h2{border-left-color:#c8a15a}
+body.s-muchong{--a:#15803d;--as:rgba(21,128,61,.08);--ab:rgba(21,128,61,.20);--w:1080px}
+body.s-mathchina{--a:#4f46e5;--as:rgba(79,70,229,.08);--ab:rgba(79,70,229,.20);--w:1080px}
+body.s-iphy{--a:#7c3aed;--as:rgba(124,58,237,.08);--ab:rgba(124,58,237,.20);--w:1080px}
+
+/* ============ 站点细节件 ============
+   真实站点之间最容易被认出来的差别，往往不在版式，而在这类零碎元件上。
+   模板正文写在 sites.json 的 detail_top / detail_bottom 里，这里只管长相。 */
+
+/* CSDN：文章顶部的专栏收录条 */
+.colbar{display:flex;align-items:center;gap:9px;flex-wrap:wrap;
+  background:linear-gradient(90deg,rgba(252,85,49,.06),rgba(252,85,49,0));
+  border-left:3px solid var(--a);border-radius:0 6px 6px 0;
+  padding:9px 14px;margin:0 0 18px;font-size:12.5px;color:var(--ink3)}
+.colbar b{font-weight:600;color:var(--a);letter-spacing:.5px}
+.colbar a{color:var(--ink2);font-weight:500}
+.colbar span{color:var(--ink3)}
+.colbar i{margin-left:auto;font-style:normal;font-size:12px;color:#fff;background:var(--a);
+  border-radius:20px;padding:3px 12px;cursor:pointer}
+
+/* 博客园：文末那行 posted @ */
+.posted{margin:22px 0 0;padding-top:14px;border-top:1px dashed var(--line);
+  font-family:ui-monospace,Consolas,monospace;font-size:12px;color:var(--ink3);line-height:1.9}
+.posted a{color:var(--a)}
+body.s-cnblogs .acts{display:none}
+
+/* 知乎：底部赞同条 */
+.zvote{display:flex;align-items:center;gap:9px;margin:24px 0 4px;flex-wrap:wrap}
+.zvote span{display:inline-flex;align-items:center;gap:6px;font-size:13.5px;border-radius:3px;
+  padding:9px 16px;cursor:pointer;transition:.15s}
+.zvote .up{background:rgba(0,132,255,.10);color:#0084ff;font-weight:600}
+.zvote .up:hover{background:rgba(0,132,255,.16)}
+.zvote .dn{border:1px solid rgba(0,132,255,.35);color:#0084ff;padding:9px 13px}
+.zvote .cm,.zvote .sh,.zvote .st{border:1px solid var(--line);color:var(--ink3)}
+body.s-zhihu .acts{display:none}
+
+/* 掘金：标题下的分类/阅读信息条 */
+.jjbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 20px;
+  font-size:12.5px;color:var(--ink3)}
+.jjbar .jjcat{background:var(--as);color:var(--a);border-radius:3px;padding:2px 9px;
+  font-weight:500;text-decoration:none}
+.jjbar span{color:var(--ink3)}
+.jjbar i{font-style:normal;color:var(--line)}
+/* 掘金：文末的专栏收录卡 */
+.jjend{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:26px 0 0;
+  padding:14px 16px;background:var(--as);border-radius:var(--r);font-size:12.5px;color:var(--ink2)}
+.jjend b{font-weight:600;color:var(--ink)}
+.jjend a{color:var(--a);text-decoration:none;font-weight:500}
+.jjend em{margin-left:auto;font-style:normal;color:var(--ink3)}
+body.s-juejin .acts{display:none}
+
+/* GitHub：仓库名 + star/fork 计数条 */
+.ghbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:2px 0 18px;
+  font-size:12.5px;color:#57606a}
+.ghbar .ghpath{color:#57606a}
+.ghbar .ghpath b{color:#0969da;font-weight:600}
+.ghbar .ghpill{margin-left:2px;border:1px solid #d0d7de;border-radius:20px;
+  padding:1px 8px;font-size:11.5px;color:#57606a}
+.ghbar .ghbtn{border:1px solid #d0d7de;border-radius:6px;
+  padding:3px 10px;background:#f6f8fa;color:#24292f;font-size:12px}
+.ghbar .ghbtn:first-of-type{margin-left:auto}
+
+/* Stack Overflow：文末的 asked/viewed 与标签 */
+.sotags{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:22px 0 0;
+  padding-top:14px;border-top:1px solid var(--line);font-size:12.5px}
+.sotags .soasked{color:var(--ink3);margin-right:auto}
+.sotags a{background:var(--as);color:var(--a);border-radius:3px;padding:3px 8px;
+  font-size:12px;text-decoration:none}
+body.s-stackoverflow .acts{display:none}
+body.s-stackoverflow .tags{display:none}
+
+/* Confluence：页面创建/修改信息 */
+.cfmeta{margin:0 0 20px;padding-bottom:12px;border-bottom:1px solid var(--line);
+  font-size:12.5px;color:var(--ink3)}
+.cfmeta b{color:var(--ink2);font-weight:600}
+.cfmeta a{color:var(--a);text-decoration:none}
+
+/* 公众号：原创标记与底部数据条 */
+.wxhead{display:flex;align-items:center;gap:9px;margin:0 0 20px;font-size:13px;color:var(--ink3)}
+.wxhead .wxorig{background:var(--a);color:#fff;border-radius:3px;padding:1px 6px;
+  font-size:11.5px;letter-spacing:.5px}
+.wxhead .wxip{color:#c8c8c8;font-size:12px}
+.wxfoot{display:flex;align-items:center;gap:18px;margin:26px 0 0;font-size:12.5px;
+  color:var(--ink3)}
+.wxfoot .wxreward{margin-left:auto;border:1px solid var(--line);border-radius:20px;
+  padding:3px 14px;color:var(--ink2)}
+body.s-wechat .acts{display:none}
+
+</style>
+</head>
+<body class="ly-blog s-csdn">
+
+<div class="rprog"><i style="width:100.0%"></i></div>
+
+<header class="hd ">
+  <div class="hd-in">
+    <a class="lg" href="#"><span class="mk">C</span><b>CSDN</b><span class="tagx">博客</span></a>
+    <nav class="nav"><a href="#">首页</a><a href="#" class="on">博客</a><a href="#">下载</a><a href="#">问答</a><a href="#">课程</a><a href="#">社区</a><a href="#">AI</a></nav>
+    <div class="hd-r">
+      <div class="sbox"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="M16.5 16.5L21 21"/></svg>搜索 CSDN</div>
+      <span class="write">写文章</span>
+      <span class="av">k</span>
+    </div>
+  </div>
+</header>
+
+<div class="ntc"><div class="ntc-in"><b>置顶</b><span>创作中心 · 本周有 2 篇草稿待发布，1 篇正在审核</span><span class="x">×</span></div></div>
+
+<div class="grid">
+  <main>
+    <div class="crumb"><span>首页</span><span class="sep">›</span><span>后端</span><span class="sep">›</span><span>分布式系统</span></div>
+    <h1 class="pt">关于「第四章 一次完整的排查记录」的几点笔记</h1>
+    <div class="mt">
+      <span class="au"><span class="av">k</span>kite<span class="ro"></span></span>
+      <span>2026-11-02 21:34</span>
+      <span class="sp"><span>阅读 <b data-tf="read">2.4k</b></span><span>点赞 86</span><span>收藏 12</span></span>
+    </div>
+
+    <div class="colbar"><b>专栏</b><a href="#分布式一致性">分布式一致性实战</a><span>已收录 138 篇 · 2426 人关注</span><i>关注专栏</i></div>
+    <article class="prose"><p>14:26 这就是全部答案：远程配置中心抖动，每个请求都要等它超时才继续，超时值等于把延迟直接钉在 800ms。</p><p>14:29 临时处置：把配置缓存到本地，每 30 秒异步刷新一次，请求路径不再同步拉取。延迟回到 25ms。</p><p>14:40 复盘第一条：任何放在请求路径上的远程调用，都必须有低延迟的兜底值，不能拿超时值当默认值。</p><p>14:42 复盘第二条：这个依赖没有出现在任何架构图上，也没有被纳入容量评估。</p><p>14:45 复盘第三条：千分之三的比例骗了我们。看起来像偶发，其实是配置中心每 30 秒重连一次的窗口期。</p><p>15:00 开始补监控。给每个跨服务调用加上「耗时超过基线 3 倍」的告警，而不是只看错误率。</p><p>15:20 顺手把一个隐藏问题也翻了上来：优惠服务的客户端连接池上限是 8，而实例数是 16。</p><p>15:24 也就是说，有一半的实例在排队等连接。平时压力小看不出来，一旦上游变慢就会雪崩。</p><p>15:30 连接池调到 64，加上获取连接超时 200ms。这条改动比配置缓存更关键。</p></article>
+    
+
+    <div class="adslot"><div class="ad-inline"><div class="ic"></div><div class="ax"><div class="adt">2 核 4G 云服务器 首年 89 元</div><div class="add">新用户专享 · 上海/香港节点可选</div></div><div class="adc">立即抢购 ›</div></div></div>
+    <div class="tags"><a href="#"># 分布式一致性</a><a href="#"># Raft</a><a href="#"># etcd</a><a href="#"># 性能优化</a><a href="#"># 可观测性</a></div>
+
+    <div class="cpr">本文由 kite 原创发布于 CSDN，未经许可禁止转载。<br>
+      如有侵权请联系 blog.csdn.net 处理，转载请注明出处。</div>
+
+    <div class="acts">
+      <span class="act pri">👍 点赞 86</span>
+      <span class="act">收藏</span>
+      <span class="act">分享</span>
+      <span class="act">举报</span>
+    </div>
+
+    <section class="cm">
+      <div class="cm-h">评论 <span>3</span></div>
+      <div class="cmlist"><div class="cmt"><div class="av">k</div><div class="cb"><div class="ch"><b>kite</b><span>2026-11-02 23:27</span><span class="lk">赞 44</span></div><p>按批广播这个设计我见过，本质是把“通知”当成了条件变量，但通知是有损的，唤醒不等于条件成立。</p></div></div><div class="cmt"><div class="av">林</div><div class="cb"><div class="ch"><b>林一</b><span>2026-11-03 00:04</span><span class="lk">赞 11</span></div><p>请问改成精确唤醒之后，apply 协程的锁竞争有变化吗？我们线上也遇到类似抖动。</p></div></div><div class="cmt"><div class="av">半</div><div class="cb"><div class="ch"><b>半山</b><span>作者</span><span>2026-11-03 01:43</span><span class="lk">赞 28</span></div><p>有变化，每个等待方挂一个最小堆，唤醒是 O(log n)。压测下 CPU 多用了 2%，可以接受。</p></div></div></div>
+    </section>
+
+    <div class="pgbar"><span class="lbl">第 2 / 3 页</span><a class="pn" data-nav="page-prev" href="/r/eab60d7d5c54ba0cab9d9781/3?site=csdn&pack=cs&p=1">‹ 上一页</a><span class="nums"><a class="" href="/r/eab60d7d5c54ba0cab9d9781/3?site=csdn&pack=cs&p=1">1</a><b>2</b><a class="" href="/r/eab60d7d5c54ba0cab9d9781/3?site=csdn&pack=cs&p=3">3</a></span><a class="pn" data-nav="page-next" href="/r/eab60d7d5c54ba0cab9d9781/3?site=csdn&pack=cs&p=3">下一页 ›</a></div><div class="pager"><a class="pg" data-nav="prev" href="/r/eab60d7d5c54ba0cab9d9781/2?site=csdn&pack=cs">‹ 上一篇</a><span class="pg-info">04 / 04</span><span class="pg off">下一篇 ›</span></div>
+  </main>
+
+  <aside class="side">
+    <div class="ad hl"><div class="adt">云原生实战训练营</div><div class="add">12 周 · 从 K8s 到 Service Mesh · 含大厂面试题库</div><div class="adc">免费试听 ›</div></div>
+    <div class="mod"><div class="mod-h">作者榜</div><div class="mod-b"><a class="item" href="#"><span class="n t">1</span><span class="tx">一次 etcd 选主风暴的完整复盘</span><span class="em">9.2k</span></a><a class="item" href="#"><span class="n t">2</span><span class="tx">分布式事务：从 2PC 到 Saga 的取舍</span><span class="em">7.8k</span></a><a class="item" href="#"><span class="n t">3</span><span class="tx">我用 Go 写了个可观测的限流器</span><span class="em">6.4k</span></a><a class="item" href="#"><span class="n">4</span><span class="tx">为什么你的 P99 永远降不下来</span><span class="em">5.9k</span></a></div></div><div class="mod"><div class="mod-h">相关推荐</div><div class="mod-b"><a class="item" href="#"><span class="tx">Raft 论文逐段精读（一）</span><span class="em">3.1k</span></a><a class="item" href="#"><span class="tx">etcd 的 WAL 与快照机制</span><span class="em">2.7k</span></a></div></div><div class="mod"><div class="mod-h">热门标签</div><div class="mod-b"><div class="tagp"><a href="#">Raft</a><a href="#">一致性</a><a href="#">etcd</a><a href="#">Go</a><a href="#">可观测性</a><a href="#">性能优化</a></div></div></div>
+  </aside>
+</div>
+
+<footer class="ft"><div class="ft-in">© 1999-2026 CSDN · 京ICP备19004658号 · 京公网安备 11010502030143 号 · 经营性网站备案信息</div></footer>
+
+<script>
+(function(){
+  var boss="about:blank",book="eab60d7d5c54ba0cab9d9781",ch=3,site="csdn",pack="cs";
+  var SITES=["csdn","juejin","zhihu","cnblogs","wechat","github","stackoverflow","confluence","dxy","xuekan","muchong","mathchina","iphy"],PACKS=["cs","crypto","infosec","med","edu","bio","math","phys"],ON=true;
+  function go(sel){
+    var a=document.querySelector(sel);
+    if(a&&a.getAttribute("href")){location.href=a.getAttribute("href");return true}
+    return false;
+  }
+  function cyc(list,cur,step){
+    var i=list.indexOf(cur); if(i<0){i=0}
+    return list[(i+step+list.length)%list.length];
+  }
+  function nav(s,p){location.href="/r/"+book+"/"+ch+"?site="+s+"&pack="+p}
+  function fs(d){
+    var p=document.querySelector(".prose"); if(!p){return}
+    var v=parseFloat(p.style.fontSize)||16;
+    v=Math.min(24,Math.max(13,v+d));
+    p.style.fontSize=v+"px";
+    try{localStorage.setItem("tf.fs",v)}catch(e){}
+  }
+  function help(){
+    var d=document.getElementById("kbd");
+    if(d){d.parentNode.removeChild(d);return}
+    var rows=[["Esc","立即离开"],["← →","上一页 / 下一页"],["S","换一个皮肤（Shift 反向）"],
+              ["P","换一个主题包（Shift 反向）"],["+ -","正文调大 / 调小"],["H","回书库"],["?","收起这块"]];
+    var html="<b>快捷键</b>";
+    for(var i=0;i<rows.length;i++){html+="<div class='kr'><i>"+rows[i][0]+"</i><span>"+rows[i][1]+"</span></div>"}
+    html+="<em>这些键只在阅读页生效，不影响浏览器自带的组合键</em>";
+    d=document.createElement("div"); d.id="kbd"; d.innerHTML=html;
+    document.body.appendChild(d);
+  }
+  document.addEventListener("keydown",function(e){
+    if(e.key==="Escape"){e.preventDefault();location.replace(boss);return}
+    if(!ON){return}
+    if(e.ctrlKey||e.altKey||e.metaKey){return}
+    var t=e.target;
+    if(t&&(t.tagName==="INPUT"||t.tagName==="TEXTAREA"||t.isContentEditable)){return}
+    switch(e.key){
+      case "ArrowRight":
+        if(go('[data-nav="page-next"]')||go('[data-nav="next"]')){e.preventDefault()}
+        break;
+      case "ArrowLeft":
+        if(go('[data-nav="page-prev"]')||go('[data-nav="prev"]')){e.preventDefault()}
+        break;
+      case "h": case "H": location.href="/"; break;
+      case "s": nav(cyc(SITES,site,1),pack); break;
+      case "S": nav(cyc(SITES,site,-1),pack); break;
+      case "p": nav(site,cyc(PACKS,pack,1)); break;
+      case "P": nav(site,cyc(PACKS,pack,-1)); break;
+      case "+": case "=": fs(1); break;
+      case "-": case "_": fs(-1); break;
+      case "?": help(); break;
+    }
+  });
+  try{
+    var f=localStorage.getItem("tf.fs");
+    if(f){var p=document.querySelector(".prose"); if(p){p.style.fontSize=f+"px"}}
+  }catch(e){}
+})();
+</script>
+<script>
+(function(){
+  var st = {read:2426, like:86, star:12};
+  var raf = null, timer = null;
+  function fmt(n){
+    if(n>=10000) return (n/10000).toFixed(1)+"w";
+    if(n>=1000){
+      var v=n/1000;
+      return (v%1===0? v.toFixed(0): v.toFixed(1))+"k";
+    }
+    return String(n);
+  }
+  function paint(){
+    var r=document.querySelector('[data-tf="read"]');
+    if(r) r.textContent = fmt(st.read);
+  }
+  function tick(){
+    if(document.hidden) return;
+    st.read += Math.floor(Math.random()*2);
+    paint();
+  }
+  timer = setInterval(tick, 47000);
+  document.addEventListener("visibilitychange", function(){
+    if(document.hidden) clearInterval(timer);
+    else timer = setInterval(tick, 47000);
+  });
+  paint();
+})();
+</script>
+</body>
+</html>

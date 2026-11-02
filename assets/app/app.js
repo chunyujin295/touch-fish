@@ -237,6 +237,7 @@ function renderSettings() {
   $("#setBlur").checked = s.pause_on_blur !== false;
   $("#setHotkey").value = s.hotkey || "ctrl+alt+f";
   $("#setTray").checked = s.tray !== false;
+  $("#setKeys").checked = s.reader_keys !== false;
   $("#setPort").value = s.port || 7317;
 }
 
@@ -248,6 +249,7 @@ async function saveSettings() {
     pause_on_blur: $("#setBlur").checked,
     hotkey: $("#setHotkey").value.trim() || "ctrl+alt+f",
     tray: $("#setTray").checked,
+    reader_keys: $("#setKeys").checked,
     port: Number($("#setPort").value) || 7317,
   };
   try {
@@ -357,6 +359,30 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && $("#drawer").classList.contains("open")) closeDrawer();
+    const typing =
+      e.target &&
+      (e.target.tagName === "INPUT" ||
+        e.target.tagName === "TEXTAREA" ||
+        e.target.isContentEditable);
+    if (e.key === "Escape") {
+      if ($("#drawer").classList.contains("open")) return closeDrawer();
+      if (typing) {
+        e.target.blur();
+        $("#searchInput").value = "";
+        $("#searchInput").dispatchEvent(new Event("input"));
+      }
+      return;
+    }
+    // 斜杠聚焦搜索，和大多数阅读器一致；正在输入时不抢键
+    if (e.key === "/" && !typing && !e.ctrlKey && !e.metaKey) {
+      e.preventDefault();
+      showView("shelf");
+      $("#searchInput").focus();
+    }
+    // Ctrl/Cmd + O 导入
+    if (e.key.toLowerCase() === "o" && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      $("#fileInput").click();
+    }
   });
 });

@@ -20,6 +20,7 @@ pub fn page(
     pack_id: &str,
     boss_url: &str,
     page_no: usize,
+    reader_keys: bool,
 ) -> String {
     let sites = load("data/sites.json");
     let packs = load("data/packs.json");
@@ -235,7 +236,28 @@ pub fn page(
     m.insert("HOST", esc(&host));
     m.insert("URL", esc(&url));
     m.insert("PROGRESS", format!("{progress:.1}"));
-    m.insert("BOSS", boss_script(boss_url));
+    // 快捷键要能在皮肤 / 主题包之间循环，所以把两份 id 表带进页面
+    let site_ids: Vec<String> = sites
+        .iter()
+        .filter_map(|v| v.get("id").and_then(|x| x.as_str()).map(|x| x.to_string()))
+        .collect();
+    let pack_ids: Vec<String> = packs
+        .iter()
+        .filter_map(|v| v.get("id").and_then(|x| x.as_str()).map(|x| x.to_string()))
+        .collect();
+    m.insert(
+        "BOSS",
+        keys_script(
+            boss_url,
+            &book.id,
+            idx,
+            &sid,
+            s(&pack, "id"),
+            &site_ids,
+            &pack_ids,
+            reader_keys,
+        ),
+    );
     m.insert("LIVE", live_script(read, like, star));
     m.insert("BODYCLASS", format!("ly-{layout} s-{sid}"));
 
@@ -560,16 +582,16 @@ fn comments_html(pack: &Value, layout: &str, art_ts: i64, rng: &mut Rng) -> Stri
 
 fn pager(book: &Book, idx: usize, site: &str, pack: &str) -> String {
     let total = book.chapters.len();
-    let link = |i: usize, label: &str| {
+    let link = |i: usize, label: &str, nav: &str| {
         format!(
-            "<a class=\"pg\" href=\"/r/{}/{i}?site={site}&pack={pack}\">{label}</a>",
+            "<a class=\"pg\" data-nav=\"{nav}\" href=\"/r/{}/{i}?site={site}&pack={pack}\">{label}</a>",
             book.id
         )
     };
     let mut out = String::new();
     out.push_str("<div class=\"pager\">");
     if idx > 0 {
-        out.push_str(&link(idx - 1, "‹ 上一篇"));
+        out.push_str(&link(idx - 1, "‹ 上一篇", "prev"));
     } else {
         out.push_str("<span class=\"pg off\">‹ 上一篇</span>");
     }
@@ -577,7 +599,7 @@ fn pager(book: &Book, idx: usize, site: &str, pack: &str) -> String {
     out.push_str(&format!("{:02} / {:02}", idx + 1, total));
     out.push_str("</span>");
     if idx + 1 < total {
-        out.push_str(&link(idx + 1, "下一篇 ›"));
+        out.push_str(&link(idx + 1, "下一篇 ›", "next"));
     } else {
         out.push_str("<span class=\"pg off\">下一篇 ›</span>");
     }
@@ -614,12 +636,17 @@ fn page_bar(book_id: &str, idx: usize, site: &str, pack: &str, cur: usize, total
             "<a class=\"{cls}\" href=\"/r/{book_id}/{idx}?site={site}&pack={pack}&p={p}\">{label}</a>"
         )
     };
+    let link_nav = |p: usize, label: &str, nav: &str| {
+        format!(
+            "<a class=\"pn\" data-nav=\"{nav}\" href=\"/r/{book_id}/{idx}?site={site}&pack={pack}&p={p}\">{label}</a>"
+        )
+    };
     let mut out = String::from("<div class=\"pgbar\">");
     out.push_str(&format!(
         "<span class=\"lbl\">第 {cur} / {total} 页</span>"
     ));
     if cur > 1 {
-        out.push_str(&link(cur - 1, "‹ 上一页", "pn"));
+        out.push_str(&link_nav(cur - 1, "‹ 上一页", "page-prev"));
     } else {
         out.push_str("<span class=\"pn off\">‹ 上一页</span>");
     }
@@ -647,7 +674,7 @@ fn page_bar(book_id: &str, idx: usize, site: &str, pack: &str, cur: usize, total
     }
     out.push_str("</span>");
     if cur < total {
-        out.push_str(&link(cur + 1, "下一页 ›", "pn"));
+        out.push_str(&link_nav(cur + 1, "下一页 ›", "page-next"));
     } else {
         out.push_str("<span class=\"pn off\">下一页 ›</span>");
     }
@@ -819,32 +846,102 @@ fn rel_time(ts: i64) -> String {
 
 /* ================= 脚本 ================= */
 
-fn boss_script(boss_url: &str) -> String {
-    // Boss Key：Esc 直接改地址栏离开，不留任何可见痕迹。
-    // 跳转目标直接内联成字符串字面量，不在页面上留任何全局变量——
-    // 一个叫 __TF_BOSS__ 的全局挂在 window 上，view-source 一眼就露馅。
+/// 阅读页的键盘层：Boss Key 之外还有翻页、换皮肤、换主题包、字号、回书库、帮助。
+///
+/// 两处细节：
+/// 1. 跳转目标不挂全局变量，全部内联成局部量——`window.__TF_BOSS__` 这种名字
+///    在 view-source 里一眼就露馅，之前踩过。
+/// 2. Esc 永远最高优先级，其它键都在开关 `reader_keys` 之后；万一哪天快捷键出问题，
+///    退出通道不能跟着一起坏。
+#[allow(clippy::too_many_arguments)]
+fn keys_script(
+    boss_url: &str,
+    book_id: &str,
+    idx: usize,
+    site: &str,
+    pack: &str,
+    sites: &[String],
+    packs: &[String],
+    on: bool,
+) -> String {
     let target = if boss_url.trim().is_empty() {
         "about:blank".to_string()
     } else {
         js_str(boss_url.trim())
     };
-    format!(
-        r#"
-(function(){{
-  var boss = "{target}";
-  document.addEventListener("keydown", function(e){{
-    if (e.key === "Escape") {{
-      e.preventDefault();
-      location.replace(boss);
-    }}
-    if (e.key === "ArrowLeft" && !e.altKey && !e.ctrlKey) {{
-      var a = document.querySelector(".pager a.pg[href]");
-      if (a) location.href = a.getAttribute("href");
-    }}
-  }});
-}})();
-"#
-    )
+    let sites_json = serde_json::to_string(sites).unwrap_or_else(|_| "[]".into());
+    let packs_json = serde_json::to_string(packs).unwrap_or_else(|_| "[]".into());
+
+    const TPL: &str = r#"
+(function(){
+  var boss="%%TARGET%%",book="%%BOOK%%",ch=%%CH%%,site="%%SITE%%",pack="%%PACK%%";
+  var SITES=%%SITES%%,PACKS=%%PACKS%%,ON=%%ON%%;
+  function go(sel){
+    var a=document.querySelector(sel);
+    if(a&&a.getAttribute("href")){location.href=a.getAttribute("href");return true}
+    return false;
+  }
+  function cyc(list,cur,step){
+    var i=list.indexOf(cur); if(i<0){i=0}
+    return list[(i+step+list.length)%list.length];
+  }
+  function nav(s,p){location.href="/r/"+book+"/"+ch+"?site="+s+"&pack="+p}
+  function fs(d){
+    var p=document.querySelector(".prose"); if(!p){return}
+    var v=parseFloat(p.style.fontSize)||16;
+    v=Math.min(24,Math.max(13,v+d));
+    p.style.fontSize=v+"px";
+    try{localStorage.setItem("tf.fs",v)}catch(e){}
+  }
+  function help(){
+    var d=document.getElementById("kbd");
+    if(d){d.parentNode.removeChild(d);return}
+    var rows=[["Esc","立即离开"],["← →","上一页 / 下一页"],["S","换一个皮肤（Shift 反向）"],
+              ["P","换一个主题包（Shift 反向）"],["+ -","正文调大 / 调小"],["H","回书库"],["?","收起这块"]];
+    var html="<b>快捷键</b>";
+    for(var i=0;i<rows.length;i++){html+="<div class='kr'><i>"+rows[i][0]+"</i><span>"+rows[i][1]+"</span></div>"}
+    html+="<em>这些键只在阅读页生效，不影响浏览器自带的组合键</em>";
+    d=document.createElement("div"); d.id="kbd"; d.innerHTML=html;
+    document.body.appendChild(d);
+  }
+  document.addEventListener("keydown",function(e){
+    if(e.key==="Escape"){e.preventDefault();location.replace(boss);return}
+    if(!ON){return}
+    if(e.ctrlKey||e.altKey||e.metaKey){return}
+    var t=e.target;
+    if(t&&(t.tagName==="INPUT"||t.tagName==="TEXTAREA"||t.isContentEditable)){return}
+    switch(e.key){
+      case "ArrowRight":
+        if(go('[data-nav="page-next"]')||go('[data-nav="next"]')){e.preventDefault()}
+        break;
+      case "ArrowLeft":
+        if(go('[data-nav="page-prev"]')||go('[data-nav="prev"]')){e.preventDefault()}
+        break;
+      case "h": case "H": location.href="/"; break;
+      case "s": nav(cyc(SITES,site,1),pack); break;
+      case "S": nav(cyc(SITES,site,-1),pack); break;
+      case "p": nav(site,cyc(PACKS,pack,1)); break;
+      case "P": nav(site,cyc(PACKS,pack,-1)); break;
+      case "+": case "=": fs(1); break;
+      case "-": case "_": fs(-1); break;
+      case "?": help(); break;
+    }
+  });
+  try{
+    var f=localStorage.getItem("tf.fs");
+    if(f){var p=document.querySelector(".prose"); if(p){p.style.fontSize=f+"px"}}
+  }catch(e){}
+})();
+"#;
+
+    TPL.replace("%%TARGET%%", &target)
+        .replace("%%BOOK%%", &js_str(book_id))
+        .replace("%%CH%%", &idx.to_string())
+        .replace("%%SITE%%", &js_str(site))
+        .replace("%%PACK%%", &js_str(pack))
+        .replace("%%SITES%%", &sites_json)
+        .replace("%%PACKS%%", &packs_json)
+        .replace("%%ON%%", if on { "true" } else { "false" })
 }
 
 /// 把一个字符串安全地塞进 JS 双引号字面量里

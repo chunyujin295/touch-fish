@@ -28,6 +28,9 @@ pub struct Settings {
     /// 是否显示通知区托盘图标
     #[serde(default = "yes")]
     pub tray: bool,
+    /// 阅读页是否响应快捷键（Esc 不受这个开关影响）
+    #[serde(default = "yes")]
+    pub reader_keys: bool,
 }
 
 fn default_hotkey() -> String {
@@ -48,6 +51,7 @@ impl Default for Settings {
             pause_on_blur: true,
             hotkey: default_hotkey(),
             tray: true,
+            reader_keys: true,
         }
     }
 }

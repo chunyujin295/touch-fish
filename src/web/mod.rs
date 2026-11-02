@@ -340,6 +340,9 @@ async fn set_settings(
         if let Some(v) = body.get("tray").and_then(|v| v.as_bool()) {
             s.tray = v;
         }
+        if let Some(v) = body.get("reader_keys").and_then(|v| v.as_bool()) {
+            s.reader_keys = v;
+        }
     });
     let mut v = serde_json::to_value(next).unwrap_or_else(|_| json!({}));
     if let Some(obj) = v.as_object_mut() {
@@ -423,7 +426,15 @@ async fn reader(
     let total = book.chapters.len().max(1);
     let idx = idx.min(total - 1);
 
-    let html = render::page(&book, idx, &site, &pack, &settings.boss_url, q.p.unwrap_or(1));
+    let html = render::page(
+        &book,
+        idx,
+        &site,
+        &pack,
+        &settings.boss_url,
+        q.p.unwrap_or(1),
+        settings.reader_keys,
+    );
     app.store.set_progress(&id, idx);
 
     Html(html).into_response()
