@@ -63,3 +63,55 @@ body.s-cnblogs .acts{display:none}
 .zvote .cm,.zvote .sh,.zvote .st{border:1px solid var(--line);color:var(--ink3)}
 body.s-zhihu .acts{display:none}
 
+/* 掘金：标题下的分类/阅读信息条 */
+.jjbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 20px;
+  font-size:12.5px;color:var(--ink3)}
+.jjbar .jjcat{background:var(--as);color:var(--a);border-radius:3px;padding:2px 9px;
+  font-weight:500;text-decoration:none}
+.jjbar span{color:var(--ink3)}
+.jjbar i{font-style:normal;color:var(--line)}
+/* 掘金：文末的专栏收录卡 */
+.jjend{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:26px 0 0;
+  padding:14px 16px;background:var(--as);border-radius:var(--r);font-size:12.5px;color:var(--ink2)}
+.jjend b{font-weight:600;color:var(--ink)}
+.jjend a{color:var(--a);text-decoration:none;font-weight:500}
+.jjend em{margin-left:auto;font-style:normal;color:var(--ink3)}
+body.s-juejin .acts{display:none}
+
+/* GitHub：仓库名 + star/fork 计数条 */
+.ghbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:2px 0 18px;
+  font-size:12.5px;color:#57606a}
+.ghbar .ghpath{color:#57606a}
+.ghbar .ghpath b{color:#0969da;font-weight:600}
+.ghbar .ghpill{margin-left:2px;border:1px solid #d0d7de;border-radius:20px;
+  padding:1px 8px;font-size:11.5px;color:#57606a}
+.ghbar .ghbtn{border:1px solid #d0d7de;border-radius:6px;
+  padding:3px 10px;background:#f6f8fa;color:#24292f;font-size:12px}
+.ghbar .ghbtn:first-of-type{margin-left:auto}
+
+/* Stack Overflow：文末的 asked/viewed 与标签 */
+.sotags{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:22px 0 0;
+  padding-top:14px;border-top:1px solid var(--line);font-size:12.5px}
+.sotags .soasked{color:var(--ink3);margin-right:auto}
+.sotags a{background:var(--as);color:var(--a);border-radius:3px;padding:3px 8px;
+  font-size:12px;text-decoration:none}
+body.s-stackoverflow .acts{display:none}
+body.s-stackoverflow .tags{display:none}
+
+/* Confluence：页面创建/修改信息 */
+.cfmeta{margin:0 0 20px;padding-bottom:12px;border-bottom:1px solid var(--line);
+  font-size:12.5px;color:var(--ink3)}
+.cfmeta b{color:var(--ink2);font-weight:600}
+.cfmeta a{color:var(--a);text-decoration:none}
+
+/* 公众号：原创标记与底部数据条 */
+.wxhead{display:flex;align-items:center;gap:9px;margin:0 0 20px;font-size:13px;color:var(--ink3)}
+.wxhead .wxorig{background:var(--a);color:#fff;border-radius:3px;padding:1px 6px;
+  font-size:11.5px;letter-spacing:.5px}
+.wxhead .wxip{color:#c8c8c8;font-size:12px}
+.wxfoot{display:flex;align-items:center;gap:18px;margin:26px 0 0;font-size:12.5px;
+  color:var(--ink3)}
+.wxfoot .wxreward{margin-left:auto;border:1px solid var(--line);border-radius:20px;
+  padding:3px 14px;color:var(--ink2)}
+body.s-wechat .acts{display:none}
+

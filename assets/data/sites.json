@@ -28,6 +28,8 @@
     "nav_on": 1,
     "notice": "社区公告：第五届稀土开发者大会征稿中，入选作者可获得创作激励",
     "footer": "© 2026 掘金 · 沪ICP备16016163号-1 · 沪公网安备31011502014691号",
+    "detail_top": "<div class=\"jjbar\"><a class=\"jjcat\" href=\"#{term}\">#{term}</a><span>阅读 {read}</span><i>·</i><span>赞 {like}</span><i>·</i><span>阅读时长 {mins} 分钟</span></div>",
+    "detail_bottom": "<div class=\"jjend\"><b>文章被以下专栏收录</b><a href=\"#{term}\">{term}实践笔记</a><em>已收录 {posts} 篇</em></div>",
     "desc": "留白最大、排版最现代，长时间阅读最舒服"
   },
   {
@@ -76,6 +78,8 @@
     "nav_on": 0,
     "notice": "此账号已开通原创声明，转载须联系作者授权",
     "footer": "微信扫一扫关注该公众号 · 微信公众平台 · 腾讯公司 版权所有",
+    "detail_top": "<div class=\"wxhead\"><span class=\"wxorig\">原创</span><span>{author}</span><span class=\"wxip\">IP属地：北京</span></div>",
+    "detail_bottom": "<div class=\"wxfoot\"><span>阅读 {read}</span><span>在看 {like}</span><span>赞 {star}</span><span class=\"wxreward\">赞赏</span></div>",
     "desc": "677px 单栏，“在电脑上看篇文章”最不需要解释"
   },
   {
@@ -91,6 +95,7 @@
     "nav_on": 1,
     "notice": "This repository has been archived. Discussions are read-only.",
     "footer": "© 2026 GitHub, Inc. · Terms · Privacy · Security · Status · Docs · Contact",
+    "detail_top": "<div class=\"ghbar\"><span class=\"ghpath\">{author} / <b>{repo}</b></span><span class=\"ghpill\">Public</span><span class=\"ghbtn\">☆ Star {star}</span><span class=\"ghbtn\">&#9906; Fork {fork}</span><span class=\"ghbtn\">Watch {posts}</span></div>",
     "desc": "评论区天然是分段器，长章节不会像一堵墙"
   },
   {
@@ -106,6 +111,7 @@
     "nav_on": 3,
     "notice": "This question shows research effort; it is useful and clear",
     "footer": "© 2026 Stack Exchange Inc. · site design / logo © 2026 Stack Exchange Inc.",
+    "detail_bottom": "<div class=\"sotags\"><span class=\"soasked\">asked {time_en} &nbsp;·&nbsp; viewed {read} times &nbsp;·&nbsp; active today</span><a href=\"#\">distributed-systems</a><a href=\"#\">consensus</a><a href=\"#\">best-practices</a></div>",
     "desc": "问题当标题、答案当正文，英文技术书映射最自然"
   },
   {
@@ -122,6 +128,7 @@
     "nav_on": 1,
     "notice": "生产变更窗口：本周六 22:00–24:00，期间发布系统只读",
     "footer": "Powered by Atlassian Confluence 8.5.4 · 公司内部使用，请勿外传 · 报告问题",
+    "detail_top": "<div class=\"cfmeta\">Created by <b>{author}</b>, last modified {time} · <a href=\"#\">查看变更</a> · <a href=\"#\">页面历史</a></div>",
     "desc": "公司内部长时间看 wiki 完全正常，最安全的一版"
   },
   {

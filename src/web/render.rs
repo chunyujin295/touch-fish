@@ -120,6 +120,28 @@ pub fn page(book: &Book, idx: usize, site_id: &str, pack_id: &str, boss_url: &st
     // 模板写在 sites.json 里，渲染层只负责替换——加一个站点仍然不用改 Rust
     let term = tags.first().cloned().unwrap_or_default();
     let posts = rng.range(24, 168); // 专栏里收录了多少篇，跟评论数不是一回事
+    // 阅读时长按正文字数算，不能拍脑袋——两行字的帖子标"阅读 8 分钟"更假
+    let words: usize = blocks
+        .iter()
+        .map(|b| match b {
+            Block::P { x } | Block::H { x, .. } | Block::Q { x } => x.chars().count(),
+            Block::List { items, .. } => items.iter().map(|i| i.chars().count()).sum(),
+            Block::Code { x, .. } => x.chars().count() / 3,
+            _ => 0,
+        })
+        .sum();
+    let mins = ((words as f64 / 380.0).round() as usize).max(1);
+    let fork = (star / 5).max(7); // star 和 fork 不能同数，比例大概是 5:1
+    // GitHub 的仓库名必须是 ASCII——中文仓库名挂在 /{user}/{repo} 上一眼就是假的
+    const REPOS: [&str; 6] = [
+        "dist-sys-notes",
+        "consensus-playground",
+        "runtime-lab",
+        "core-internals",
+        "infra-notes",
+        "sys-reading",
+    ];
+    let repo = REPOS[(rng.next_u64() % REPOS.len() as u64) as usize];
     let detail = |key: &str| -> String {
         let tpl = s(&site, key);
         if tpl.is_empty() {
@@ -134,6 +156,10 @@ pub fn page(book: &Book, idx: usize, site_id: &str, pack_id: &str, boss_url: &st
             ("{star}", fmt_num(star)),
             ("{ccount}", ccount.to_string()),
             ("{posts}", fmt_num(posts)),
+            ("{mins}", mins.to_string()),
+            ("{fork}", fmt_num(fork)),
+            ("{repo}", repo.to_string()),
+            ("{time_en}", fmt_ts_en(art_ts.max(1_760_000_000))),
             ("{term}", esc(&term)),
             ("{host}", esc(&host)),
         ] {
@@ -182,17 +208,9 @@ pub fn page(book: &Book, idx: usize, site_id: &str, pack_id: &str, boss_url: &st
     m.insert("HOST", esc(&host));
     m.insert("URL", esc(&url));
     m.insert("PROGRESS", format!("{progress:.1}"));
-    m.insert("BOSS", boss_script());
+    m.insert("BOSS", boss_script(boss_url));
     m.insert("LIVE", live_script(read, like, star));
     m.insert("BODYCLASS", format!("ly-{layout} s-{sid}"));
-    m.insert(
-        "BOSSTARGET",
-        if boss_url.trim().is_empty() {
-            "about:blank".to_string()
-        } else {
-            esc(boss_url.trim())
-        },
-    );
 
     fill(&tpl, &m)
 }
@@ -625,6 +643,26 @@ fn fmt_ts(ts: i64) -> String {
     )
 }
 
+/// 英文站（Stack Overflow、GitHub 的 issue 时间）用这套写法，
+/// 中文时间戳直接贴在英文界面上是现场最能被一眼看破的地方。
+fn fmt_ts_en(ts: i64) -> String {
+    const MON: [&str; 12] = [
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    ];
+    let days = ts.div_euclid(86_400);
+    let secs = ts.rem_euclid(86_400);
+    let (y, m, d) = civil_from_days(days);
+    let mon = MON[(m as usize).clamp(1, 12) - 1];
+    format!(
+        "{} {} '{} at {:02}:{:02}",
+        mon,
+        d,
+        y % 100,
+        secs / 3600,
+        (secs % 3600) / 60
+    )
+}
+
 fn civil_from_days(z: i64) -> (i64, u32, u32) {
     let z = z + 719_468;
     let era = if z >= 0 { z } else { z - 146_096 } / 146_097;
@@ -654,24 +692,48 @@ fn rel_time(ts: i64) -> String {
 
 /* ================= 脚本 ================= */
 
-fn boss_script() -> String {
-    // Boss Key：Esc 直接改地址栏离开，不留任何可见痕迹
-    r#"
-(function(){
-  var boss = window.__TF_BOSS__ || "about:blank";
-  document.addEventListener("keydown", function(e){
-    if (e.key === "Escape") {
+fn boss_script(boss_url: &str) -> String {
+    // Boss Key：Esc 直接改地址栏离开，不留任何可见痕迹。
+    // 跳转目标直接内联成字符串字面量，不在页面上留任何全局变量——
+    // 一个叫 __TF_BOSS__ 的全局挂在 window 上，view-source 一眼就露馅。
+    let target = if boss_url.trim().is_empty() {
+        "about:blank".to_string()
+    } else {
+        js_str(boss_url.trim())
+    };
+    format!(
+        r#"
+(function(){{
+  var boss = "{target}";
+  document.addEventListener("keydown", function(e){{
+    if (e.key === "Escape") {{
       e.preventDefault();
       location.replace(boss);
-    }
-    if (e.key === "ArrowLeft" && !e.altKey && !e.ctrlKey) {
+    }}
+    if (e.key === "ArrowLeft" && !e.altKey && !e.ctrlKey) {{
       var a = document.querySelector(".pager a.pg[href]");
       if (a) location.href = a.getAttribute("href");
-    }
-  });
-})();
+    }}
+  }});
+}})();
 "#
-    .to_string()
+    )
+}
+
+/// 把一个字符串安全地塞进 JS 双引号字面量里
+fn js_str(s: &str) -> String {
+    let mut out = String::with_capacity(s.len() + 8);
+    for c in s.chars() {
+        match c {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '<' => out.push_str("\\u003c"), // 防止提前闭合 script
+            _ => out.push(c),
+        }
+    }
+    out
 }
 
 fn live_script(read: usize, like: usize, star: usize) -> String {
