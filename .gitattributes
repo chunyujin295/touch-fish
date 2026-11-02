@@ -1,0 +1,7 @@
+# 仓库里统一用 LF，检出不改行尾，避免 Windows 上每个文件都报 CRLF 警告
+* text=auto eol=lf
+
+*.png binary
+*.rgba binary
+*.ico binary
+*.epub binary

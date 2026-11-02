@@ -1,0 +1,17 @@
+/* 论坛版式：灰底白卡 + 楼层 + 快速回复框 */
+body.ly-forum{--bg:#f2f4f7}
+body.ly-forum .grid{padding-top:16px}
+body.ly-forum .post{
+  background:#fff;border:1px solid var(--line);border-radius:var(--r);
+  padding:24px 28px 20px;
+}
+body.ly-forum .post .mt{border-bottom:1px solid #f0f2f5}
+body.ly-forum .cm{background:#fff}
+body.ly-forum .cm-h{padding-bottom:12px;border-bottom:1px solid #f0f2f5;margin-bottom:2px}
+body.ly-forum .pager{margin-top:20px}
+
+@media (max-width:900px){
+  body.ly-forum .grid{grid-template-columns:1fr}
+  body.ly-forum .side{position:static;flex-direction:row;flex-wrap:wrap}
+  body.ly-forum .side>*{flex:1 1 260px}
+}

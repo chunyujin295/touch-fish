@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>缓存、可见性与"看起来对"的程序 - 云舟 - 博客园</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%232f9e4f'/%3E%3Ctext x='16' y='21' font-size='13' font-family='Arial' font-weight='bold' fill='%23fff' text-anchor='middle'%3Ecn%3C/text%3E%3C/svg%3E">
+<style>
+:root{
+  --link:#0066cc; --text:#222222; --gray:#777777; --light:#999999; --line:#e0e0e0;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:"Microsoft YaHei","PingFang SC",-apple-system,Arial,sans-serif;font-size:14px;line-height:1.7;
+  color:var(--text);background:#fff}
+a{color:var(--link);text-decoration:none}
+a:hover{text-decoration:underline;color:#c00}
+ul{list-style:none}
+
+/* ===== 顶栏 ===== */
+.hd{background:#fff;border-bottom:1px solid #ebebeb;height:58px;position:sticky;top:0;z-index:50}
+.hd-in{max-width:1120px;margin:0 auto;height:100%;display:flex;align-items:center;padding:0 12px;gap:16px}
+.logo{display:flex;align-items:center;gap:7px;font-size:20px;font-weight:bold;color:#333;letter-spacing:-.5px}
+.logo i{width:26px;height:26px;border-radius:5px;background:#2f9e4f;color:#fff;font-style:normal;font-size:11px;
+  display:flex;align-items:center;justify-content:center;font-family:Arial;letter-spacing:-.5px}
+.nav{display:flex;gap:18px;font-size:14px}
+.nav a{color:#333}
+.nav a.on{color:#2f9e4f;font-weight:bold}
+.hd .srch{margin-left:auto;position:relative}
+.hd .srch input{width:170px;height:30px;border:1px solid #ddd;border-radius:15px;padding:0 12px;font-size:13px;
+  outline:none;font-family:inherit;background:#fafafa}
+.hd .btns{display:flex;align-items:center;gap:10px;font-size:14px}
+.hd .write{background:#2f9e4f;color:#fff;padding:6px 14px;border-radius:3px;font-size:14px}
+.hd .write:hover{text-decoration:none;background:#268a44;color:#fff}
+
+/* ===== 主体 ===== */
+.wrap{max-width:1120px;margin:0 auto;padding:16px 12px 40px;display:flex;gap:20px;align-items:flex-start}
+.main{flex:1;min-width:0;background:#fff;padding:20px 24px 30px;border:1px solid #eee;border-radius:2px}
+.side{width:250px;flex:0 0 250px}
+
+/* 面包屑 */
+.crumb{font-size:12px;color:var(--light);margin-bottom:14px}
+.crumb a{color:var(--light)}
+
+/* 标题 */
+h1.post-title{font-size:24px;line-height:1.5;font-weight:bold;color:#222;margin-bottom:12px}
+.post-meta{font-size:13px;color:#555;margin-bottom:12px;line-height:1.9}
+.post-meta a{color:var(--link)}
+.post-meta .sep{margin:0 5px;color:#ccc}
+.tags-line{font-size:13px;color:#555;margin-bottom:18px}
+.tags-line a{color:var(--link)}
+.tags-line .lb{color:#777}
+
+/* 正文 */
+.post-body{font-size:14.5px;line-height:1.85;color:#333;letter-spacing:.3px}
+.post-body p{margin:0 0 14px;text-indent:0}
+.post-body h2{font-size:18px;font-weight:bold;color:#222;margin:26px 0 12px;padding-bottom:6px;border-bottom:1px solid #eee}
+.post-body h3{font-size:16px;font-weight:bold;margin:20px 0 10px;color:#222}
+.post-body blockquote{margin:14px 0;padding:10px 14px;background:#f8f8f8;border-left:4px solid #ddd;color:#555;font-size:14px}
+.post-body ul{margin:0 0 14px;padding-left:22px}
+.post-body li{list-style:disc;margin-bottom:6px}
+.post-body strong{font-weight:bold;color:#000}
+.post-body .inl{background:#f2f2f2;border:1px solid #e6e6e6;border-radius:2px;padding:0 4px;font-size:13px;
+  font-family:Consolas,"Courier New",monospace;color:#c7254e}
+.post-body pre{background:#f7f7f7;border:1px solid #e8e8e8;border-radius:2px;padding:12px 14px;overflow:auto;
+  font-family:Consolas,"Courier New",monospace;font-size:13px;line-height:1.65;color:#333;margin:0 0 14px}
+.post-body pre .cm{color:#808080;font-style:italic}
+.post-body pre .kw{color:#0000ff}
+.post-body pre .num{color:#098658}
+.post-body .figure{text-align:center;margin:16px 0}
+.post-body .figure .ph{height:140px;background:#fafafa;border:1px solid #e8e8e8;display:flex;align-items:center;
+  justify-content:center;color:#aaa;font-size:12px}
+.post-body .figure .cap{font-size:12px;color:var(--light);margin-top:6px}
+
+/* 底部操作 */
+.post-ops{margin:24px 0 0;padding-top:16px;border-top:1px dashed #e5e5e5;font-size:13px;color:#555;line-height:2}
+.post-ops .b{display:inline-block;border:1px solid #ddd;border-radius:3px;padding:3px 12px;margin-right:8px;
+  color:#333;background:#fafafa;cursor:pointer;font-size:13px}
+.post-ops .b:hover{border-color:#2f9e4f;color:#2f9e4f;text-decoration:none}
+.post-ops .edit{color:var(--link);margin-left:6px}
+.nav-links{margin-top:14px;font-size:13px;line-height:2}
+.nav-links a{color:var(--link)}
+
+/* 评论 */
+.cmt-sec{margin-top:26px;border-top:1px solid #eee;padding-top:16px}
+.cmt-sec h3{font-size:15px;font-weight:bold;margin-bottom:14px;color:#333}
+.cmt{display:flex;gap:10px;padding:12px 0;border-bottom:1px dotted #e8e8e8}
+.cmt .av{width:34px;height:34px;flex:0 0 34px;border-radius:2px;color:#fff;font-size:13px;font-weight:bold;
+  display:flex;align-items:center;justify-content:center;font-family:Arial}
+.cmt .c{flex:1;min-width:0}
+.cmt .c .h{font-size:12.5px;color:#888;margin-bottom:4px}
+.cmt .c .h a{color:#333;font-weight:bold}
+.cmt .c .h .floor{color:#bbb;margin-left:6px}
+.cmt .c .t{font-size:14px;line-height:1.75;color:#333}
+.cmt .c .f{font-size:12px;color:#999;margin-top:6px}
+.cmt .c .f span{margin-right:12px;cursor:pointer}
+.cmt-form{margin-top:14px;display:flex;gap:10px}
+.cmt-form textarea{flex:1;height:70px;border:1px solid #ddd;border-radius:2px;padding:8px 10px;font-size:13px;
+  font-family:inherit;resize:vertical;outline:none;color:#333}
+.cmt-form button{align-self:flex-end;background:#2f9e4f;color:#fff;border:none;border-radius:3px;height:30px;
+  padding:0 16px;font-size:13px;cursor:pointer;font-family:inherit}
+
+/* 侧栏 */
+.side-mod{border:1px solid #eee;border-radius:2px;margin-bottom:14px;background:#fff;overflow:hidden}
+.side-mod h4{font-size:13.5px;font-weight:bold;color:#333;padding:9px 12px;background:#f7f7f7;border-bottom:1px solid #eee}
+.side-mod .in{padding:10px 12px;font-size:13px;line-height:1.9;color:#555}
+.side-mod .in a{color:#444}
+.side-mod .in li{list-style:none;padding:2px 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.side-mod .in .cnt{color:#999;font-size:12px;margin-left:3px}
+.side-mod .in .date{color:#999;font-size:12px;margin-right:6px}
+.side-ad{height:200px;border:1px solid #eee;margin-bottom:14px;position:relative;overflow:hidden;border-radius:2px;
+  background:linear-gradient(150deg,#eef6ff,#dceafc);padding:16px;color:#154a7a}
+.side-ad .lb{position:absolute;top:0;right:0;font-size:10px;background:rgba(0,0,0,.06);color:#7c93ab;padding:1px 5px}
+.side-ad h5{font-size:14.5px;font-weight:bold;margin-top:24px;line-height:1.5}
+.side-ad p{font-size:12px;color:#57799c;margin-top:8px;line-height:1.7}
+.side-ad .go{display:inline-block;margin-top:14px;background:#2f7ed8;color:#fff;font-size:12px;padding:5px 12px;border-radius:2px}
+
+/* 页脚 */
+.ft{border-top:1px solid #eee;padding:20px 0 40px;text-align:center;font-size:12.5px;color:#999;line-height:1.9}
+.ft a{color:#999}
+.ft .power{margin-top:6px;color:#bbb}
+</style>
+</head>
+<body>
+
+<header class="hd">
+  <div class="hd-in">
+    <a class="logo" href="#"><i>cn</i>博客园</a>
+    <nav class="nav">
+      <a href="#">首页</a><a href="#" class="on">博问</a><a href="#">闪存</a><a href="#">专区</a>
+      <a href="#">收藏</a><a href="#">新闻</a><a href="#">博乐库</a>
+    </nav>
+    <div class="srch"><input type="text" placeholder="找找看" data-tf-slot="search"></div>
+    <div class="btns">
+      <a href="#">登录</a><a href="#">注册</a>
+      <a class="write" href="#">写博客</a>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <main class="main">
+    <div class="crumb"><a href="#">首页</a> &gt; <a href="#">随笔分类</a> &gt; <a href="#">架构设计</a></div>
+
+    <h1 class="post-title" data-tf-slot="article-title">缓存、可见性与"看起来对"的程序</h1>
+
+    <div class="post-meta">
+      posted @ 2026-10-28 21:14 <a href="#">云舟</a>
+      <span class="sep">|</span> 阅读(<b data-tf-slot="stat-read">2184</b>)
+      <span class="sep">|</span> 评论(<b>7</b>)
+      <span class="sep">|</span> 推荐(<b data-tf-slot="stat-like">12</b>)
+    </div>
+
+    <div class="tags-line"><span class="lb">标签：</span>
+      <a href="#">并发编程</a>, <a href="#">内存模型</a>, <a href="#">分布式</a>, <a href="#">C++</a>
+    </div>
+
+    <article class="post-body" data-tf-slot="body">
+      <p>我们习惯把程序看成一条按顺序执行的指令流：先算 A，再算 B，最后写 C。<strong>先发生的事一定先发生</strong>——这句话在单核时代几乎是不证自明的，因为硬件也是这么执行的。</p>
+
+      <p>但当你把视角从单核挪到多核，从进程内挪到进程外，"顺序"这个词就开始松动了。它并没有消失，只是从客观事实变成了局部共识：每个核都以为自己看到了正确的顺序，而它们看到的顺序可以互不相同。</p>
+
+      <h2>一、顺序是一种局部共识</h2>
+
+      <p>缓存不是一种优化项，而是现代计算机得以存在的前提。CPU 与主存之间的延迟差已经拉开到两个数量级以上：一次 L1 命中大约 4 个周期，一次访存要 200 到 300 个周期。如果每个变量都要去主存取，那么哪怕最平凡的程序也会慢到不可用。</p>
+
+      <blockquote>一个程序如果只在单线程下被验证过，那么它对"正确"的证明就只覆盖了所有可能执行的交错中的一小部分。</blockquote>
+
+      <p>下面这段代码来自一本讲并发的老书，几乎每一版都会引用它：</p>
+
+<pre><span class="cm">// 生产者线程</span>
+data = <span class="num">42</span>;
+ready = <span class="num">1</span>;
+
+<span class="cm">// 消费者线程</span>
+<span class="kw">while</span> (!ready) { <span class="cm">/* spin */</span> }
+assert(data == <span class="num">42</span>);   <span class="cm">// 有可能失败</span></pre>
+
+      <p>很多人第一次看到这个例子的反应是"编译器优化了吧"。把 <span class="inl">-O2</span> 关掉，加上 <span class="inl">volatile</span>，问题照旧。因为重排不只发生在编译器，也发生在 CPU 的乱序执行单元和缓存一致性协议之间。</p>
+
+      <h2>二、那个"每周崩一次"的 bug</h2>
+
+      <p>这类 bug 有一个非常稳定的特征：它在单线程压测里跑一万次都正确，在四核机器上每周崩一次；日志里没有异常，core dump 里变量值看起来"完全正常"。它不偶发，它是必然，只是在等一个足够坏的时序。</p>
+
+      <ul>
+        <li><strong>复现条件苛刻</strong>：需要两个核同时进入临界窗口，且其中一个恰好被中断或迁移；</li>
+        <li><strong>加日志即消失</strong>：因为日志引入了屏障，时序被"治好"了——这也是最迷惑人的地方；</li>
+        <li><strong>修复成本极低，定位成本极高</strong>：最后往往只是补一个 <span class="inl">std::atomic</span> 的 acquire/release 语义。</li>
+      </ul>
+
+      <div class="figure">
+        <div class="ph">store buffer / invalidate queue 示意图</div>
+        <div class="cap">图 4-3　写操作"看起来"立刻完成，但它还没落到缓存行</div>
+      </div>
+
+      <h2>三、写进工程习惯</h2>
+
+      <p>理解内存模型之后，落到工程上其实只有很少几条可执行的规则：共享状态默认不可变；可变共享状态一律走同步原语，不要靠"我觉得这里不会重排"；任何时候看到 <span class="inl">if (flag)</span> 去读另一份数据，都停下来想一秒。</p>
+
+      <p>真正需要建立的直觉不是"记住 MESI 的四个状态"，而是：<strong>任何跨线程共享的可变状态，都必须显式地建立 happens-before 关系</strong>。编译器与硬件只对单线程负责，跨线程的顺序需要你自己付钱。</p>
+    </article>
+
+    <div class="post-ops">
+      <a class="b" href="#">好文要顶</a><a class="b" href="#">关注我</a><a class="b" href="#">收藏该文</a>
+      <a class="edit" href="#">编辑</a>
+      <div style="margin-top:10px;color:#888;font-size:12.5px">
+        posted @ 2026-10-28 21:14 云舟 阅读(2184) 评论(7) 推荐(12)
+      </div>
+      <div class="nav-links">
+        <div>下一篇： <a href="#">MESI 协议到底在解决什么问题</a></div>
+        <div>上一篇： <a href="#">为什么你的压测结果总是不可信</a></div>
+      </div>
+    </div>
+
+    <section class="cmt-sec">
+      <h3>评论</h3>
+      <div class="cmt">
+        <div class="av" style="background:#5b8ff9">K</div>
+        <div class="c">
+          <div class="h"><a href="#">kernel_panic_</a><span class="floor">#1楼</span> 2026-10-28 22:03</div>
+          <div class="t">"加日志即消失"这句太真实了，我们上次排查丢更新，最后发现是打印语句里的锁把时序改了……</div>
+          <div class="f"><span>支持(12)</span><span>反对(0)</span><span>回复</span></div>
+        </div>
+      </div>
+      <div class="cmt">
+        <div class="av" style="background:#f6a623">阿</div>
+        <div class="c">
+          <div class="h"><a href="#">阿伟在写bug</a><span class="floor">#2楼</span> 2026-10-28 22:47</div>
+          <div class="t">图 4-3 能发个原图吗？手机上有点糊。</div>
+          <div class="f"><span>支持(3)</span><span>反对(0)</span><span>回复</span></div>
+        </div>
+      </div>
+      <div class="cmt">
+        <div class="av" style="background:#7b68ee">L</div>
+        <div class="c">
+          <div class="h"><a href="#">Leo_Go</a><span class="floor">#3楼</span> 2026-10-29 09:12</div>
+          <div class="t">补充一点：C++ 的 volatile 和 Java 的 volatile 完全不是一回事，很多文章混着讲，新人很容易被带偏。</div>
+          <div class="f"><span>支持(28)</span><span>反对(1)</span><span>回复</span></div>
+        </div>
+      </div>
+      <div class="cmt-form">
+        <textarea placeholder="[支持] [反对] [引用] [给博主发短消息]"></textarea>
+        <button>提交评论</button>
+      </div>
+    </section>
+  </main>
+
+  <aside class="side">
+    <div class="side-mod">
+      <h4>公告</h4>
+      <div class="in" style="color:#666">
+        昵称：<a href="#">云舟</a><br>
+        园龄：8年<br>
+        粉丝：3.4w　关注：128
+      </div>
+    </div>
+
+    <div class="side-mod">
+      <h4>随笔分类</h4>
+      <div class="in">
+        <li><a href="#">架构设计</a><span class="cnt">(45)</span></li>
+        <li><a href="#">并发与性能</a><span class="cnt">(23)</span></li>
+        <li><a href="#">分布式系统</a><span class="cnt">(31)</span></li>
+        <li><a href="#">C++ / Rust</a><span class="cnt">(18)</span></li>
+        <li><a href="#">线上事故复盘</a><span class="cnt">(12)</span></li>
+      </div>
+    </div>
+
+    <div class="side-mod">
+      <h4>随笔档案</h4>
+      <div class="in">
+        <li><a href="#">2026年10月</a><span class="cnt">(3)</span></li>
+        <li><a href="#">2026年9月</a><span class="cnt">(5)</span></li>
+        <li><a href="#">2026年8月</a><span class="cnt">(2)</span></li>
+      </div>
+    </div>
+
+    <div class="side-ad">
+      <span class="lb">广告</span>
+      <h5>阿里云 ECS 新用户专享</h5>
+      <p>2核4G 云服务器 199 元/年<br>建站 · 测试 · 学习三合一</p>
+      <a class="go" href="#">查看活动</a>
+    </div>
+
+    <div class="side-mod">
+      <h4>阅读排行榜</h4>
+      <div class="in">
+        <li><span class="date">1.</span><a href="#">MySQL 索引失效的 11 种场景</a></li>
+        <li><span class="date">2.</span><a href="#">我把公司 CI 从 22 分钟优化到 4 分钟</a></li>
+        <li><span class="date">3.</span><a href="#">写给后端的 Nginx 配置清单</a></li>
+        <li><span class="date">4.</span><a href="#">一次 OOM 事故复盘</a></li>
+        <li><span class="date">5.</span><a href="#">TCP 粘包到底是谁的锅？</a></li>
+      </div>
+    </div>
+
+    <div class="side-mod">
+      <h4>最新评论</h4>
+      <div class="in" style="font-size:12.5px;line-height:1.8">
+        <li>kernel_panic_：加日志即消失这句…</li>
+        <li>阿伟在写bug：图 4-3 能发原图吗</li>
+        <li>Leo_Go：C++ 的 volatile 和 Java…</li>
+      </div>
+    </div>
+  </aside>
+</div>
+
+<footer class="ft">
+  <div>Copyright © 2026 云舟</div>
+  <div class="power">Powered by .NET 8.0 on Kubernetes</div>
+</footer>
+
+<script>
+(function () {
+  var n = 2184, el = document.querySelector('[data-tf-slot="stat-read"]');
+  setInterval(function () {
+    if (document.hidden) return;
+    n += 1; el.textContent = n;
+  }, 52000);
+})();
+</script>
+</body>
+</html>

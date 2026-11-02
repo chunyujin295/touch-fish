@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>缓存、可见性与"看起来对"的程序 - 掘金</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%231e80ff'/%3E%3Cpath d='M9 20l7 5 7-5M9 15l7 5 7-5M16 8l4 4-4 4-4-4z' stroke='%23fff' stroke-width='1.8' fill='none' stroke-linejoin='round'/%3E%3C/svg%3E">
+<style>
+:root{
+  --blue:#1e80ff; --text:#252933; --title:#1d2129; --sub:#8a919f; --line:#e5e6eb; --bg:#fff;
+  --hover:#f7f8fa;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,system-ui,"Segoe UI",Roboto,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  font-size:15px;line-height:1.7;color:var(--text);background:#fff;-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}
+a:hover{color:var(--blue)}
+ul{list-style:none}
+svg{display:block}
+
+/* ============ 顶栏 ============ */
+.hd{height:60px;background:#fff;border-bottom:1px solid #f1f1f1;position:sticky;top:0;z-index:60}
+.hd-in{max-width:1240px;margin:0 auto;height:100%;display:flex;align-items:center;padding:0 20px;gap:24px}
+.logo{font-size:19px;font-weight:700;color:var(--blue);display:flex;align-items:center;gap:7px;letter-spacing:-.3px}
+.logo i{width:26px;height:26px;border-radius:6px;background:var(--blue);display:flex;align-items:center;justify-content:center}
+.nav{display:flex;gap:22px;font-size:15px;color:#515767}
+.nav a.on{color:var(--blue);font-weight:500}
+.srch{flex:1;max-width:340px;margin-left:auto}
+.srch input{width:100%;height:34px;border:1px solid #e5e6eb;background:#f7f8fa;border-radius:17px;padding:0 14px 0 36px;
+  font-size:13px;outline:none;font-family:inherit;color:#333}
+.srch input::placeholder{color:#a5a9b3}
+.srch{position:relative}
+.srch span{position:absolute;left:13px;top:7px;color:#a5a9b3;font-size:14px}
+.hd-r{display:flex;align-items:center;gap:14px;font-size:14px;color:#515767}
+.hd-r .wr{background:var(--blue);color:#fff;height:34px;line-height:34px;padding:0 16px;border-radius:4px;font-size:14px}
+.ava{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#6aa9ff,#1e80ff);color:#fff;
+  font-size:13px;display:flex;align-items:center;justify-content:center;font-weight:600}
+
+/* ============ 顶部 banner 广告 ============ */
+.banner{max-width:1240px;margin:16px auto 0;padding:0 20px}
+.banner .b{height:72px;border-radius:8px;background:linear-gradient(95deg,#101f3c 0%,#1b3a6b 55%,#2b5fa8 100%);
+  display:flex;align-items:center;padding:0 24px;color:#fff;gap:20px;position:relative;overflow:hidden}
+.banner .b:after{content:"";position:absolute;right:-30px;top:-70px;width:200px;height:200px;border-radius:50%;
+  background:radial-gradient(circle,rgba(64,158,255,.45),transparent 65%)}
+.banner h4{font-size:17px;font-weight:600;letter-spacing:.2px}
+.banner p{font-size:12.5px;color:#a9c3e6;margin-top:4px}
+.banner .go{margin-left:auto;background:#1e80ff;padding:7px 16px;border-radius:4px;font-size:13px;z-index:2}
+.banner .ad{position:absolute;top:0;right:0;font-size:10px;color:#8fa8c8;padding:3px 7px}
+
+/* ============ 三栏 ============ */
+.wrap{max-width:1240px;margin:0 auto;padding:24px 20px 60px;display:flex;gap:24px;align-items:flex-start}
+
+/* 左侧目录 */
+.left{width:190px;flex:0 0 190px;position:sticky;top:84px}
+.catalog{border-left:2px solid #f1f1f1;padding-left:0}
+.catalog .h{font-size:13px;color:var(--sub);margin-bottom:10px;padding-left:14px}
+.catalog a{display:block;font-size:13px;color:#515767;padding:6px 0 6px 14px;margin-left:-2px;
+  border-left:2px solid transparent;line-height:1.5;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.catalog a:hover{color:var(--blue)}
+.catalog a.on{color:var(--blue);border-left-color:var(--blue);font-weight:500}
+
+/* 中间 */
+.main{flex:1;min-width:0;max-width:760px}
+h1.art-title{font-size:30px;line-height:1.4;font-weight:700;color:var(--title);letter-spacing:-.3px;margin-bottom:18px}
+.author-row{display:flex;align-items:center;gap:12px;padding-bottom:20px;border-bottom:1px solid #f1f1f1;margin-bottom:24px}
+.author-row .a1{width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,#6aa9ff,#1e80ff);
+  color:#fff;font-size:15px;font-weight:600;display:flex;align-items:center;justify-content:center;flex:0 0 40px}
+.author-row .nm{font-size:15px;color:#252933;font-weight:500}
+.author-row .mt{font-size:13px;color:var(--sub);margin-top:2px}
+.author-row .mt b{font-weight:400;color:#8a919f}
+.author-row .follow{margin-left:auto;border:1px solid var(--blue);color:var(--blue);font-size:13px;
+  padding:5px 14px;border-radius:4px}
+
+/* 正文 */
+.article{font-size:16px;line-height:1.85;color:#252933;letter-spacing:.2px}
+.article p{margin-bottom:20px}
+.article h2{font-size:22px;font-weight:700;color:var(--title);margin:36px 0 18px;line-height:1.5}
+.article h3{font-size:18px;font-weight:600;margin:26px 0 14px}
+.article strong{font-weight:600;color:#1d2129}
+.article em{font-style:normal;border-bottom:1px dashed #b8c2cc}
+.article blockquote{margin:24px 0;padding:2px 0 2px 16px;border-left:4px solid var(--blue);
+  color:#515767;font-size:15.5px;line-height:1.9;background:linear-gradient(90deg,#f6f9ff,transparent)}
+.article ul{margin-bottom:20px}
+.article li{position:relative;padding-left:18px;margin-bottom:10px}
+.article li:before{content:"";position:absolute;left:2px;top:12px;width:5px;height:5px;border-radius:50%;background:#c2c8d1}
+.article code.inl{background:#f4f5f7;color:#d83931;padding:2px 5px;border-radius:3px;font-size:14px;
+  font-family:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace}
+
+/* 代码块 */
+.code{background:#282c34;border-radius:8px;margin:24px 0;overflow:hidden}
+.code .bar{display:flex;align-items:center;padding:10px 16px;border-bottom:1px solid rgba(255,255,255,.06);
+  font-size:12.5px;color:#7f8796;gap:10px}
+.code .bar .dot{width:9px;height:9px;border-radius:50%;background:#3f4450}
+.code .bar .lang{margin-left:6px;color:#61afef;font-family:Consolas,monospace}
+.code .bar .cp{margin-left:auto;cursor:pointer;color:#7f8796}
+.code pre{margin:0;padding:16px 18px;overflow-x:auto;color:#abb2bf;font-size:13.5px;line-height:1.75;
+  font-family:"SFMono-Regular",Consolas,"Liberation Mono",Menlo,monospace}
+.cm{color:#5c6370;font-style:italic}.kw{color:#c678dd}.str{color:#98c379}.fn{color:#61afef}.num{color:#d19a66}
+
+/* 图片 */
+.figure{margin:26px 0}
+.figure .ph{height:170px;border-radius:8px;background:linear-gradient(135deg,#f2f6fd,#e6eefb);
+  display:flex;align-items:center;justify-content:center;color:#9aa7bb;font-size:12.5px;letter-spacing:1px;
+  border:1px solid #eaf0f9}
+.figure .cap{text-align:center;font-size:13px;color:var(--sub);margin-top:10px}
+
+/* 文末分类 + 三连 */
+.art-foot{margin-top:36px}
+.art-foot .cat{font-size:13px;color:var(--sub);margin-bottom:22px;display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.chip{background:#f4f5f7;color:#515767;font-size:12.5px;padding:3px 9px;border-radius:3px}
+.chip.blue{background:#eaf2ff;color:#1e80ff}
+.tri{display:flex;gap:16px;justify-content:center;padding:20px 0 8px;border-top:1px solid #f1f1f1}
+.tri .b{display:flex;flex-direction:column;align-items:center;gap:4px;width:64px;color:#8a919f;font-size:12.5px;cursor:pointer}
+.tri .b .cir{width:40px;height:40px;border-radius:50%;border:1px solid #e5e6eb;display:flex;align-items:center;justify-content:center;font-size:17px}
+.tri .b:hover{color:var(--blue)}
+.tri .b:hover .cir{border-color:#b9d6ff;background:#f6f9ff}
+
+/* 评论 */
+.cmt-sec{margin-top:34px;border-top:1px solid #f1f1f1;padding-top:26px}
+.cmt-sec h3{font-size:19px;font-weight:700;margin-bottom:18px;color:var(--title)}
+.cmt-sec h3 span{font-size:14px;color:var(--sub);font-weight:400;margin-left:6px}
+.cmt-input{display:flex;gap:12px;margin-bottom:24px}
+.cmt-input .av{width:36px;height:36px;border-radius:50%;flex:0 0 36px;background:linear-gradient(135deg,#6aa9ff,#1e80ff);
+  color:#fff;font-size:13px;display:flex;align-items:center;justify-content:center;font-weight:600}
+.cmt-input .in{flex:1}
+.cmt-input textarea{width:100%;height:74px;border:1px solid #e5e6eb;background:#fafbfc;border-radius:6px;
+  padding:10px 12px;font-size:13.5px;resize:none;outline:none;font-family:inherit;color:#333}
+.cmt-input .r{display:flex;justify-content:flex-end;gap:8px;margin-top:8px}
+.cmt-input .s{background:var(--blue);color:#fff;border:none;border-radius:4px;height:30px;padding:0 16px;font-size:13px;cursor:pointer;font-family:inherit}
+.cmt{display:flex;gap:12px;padding:16px 0;border-bottom:1px solid #f7f8fa}
+.cmt .av{width:36px;height:36px;border-radius:50%;flex:0 0 36px;color:#fff;font-size:13px;font-weight:600;
+  display:flex;align-items:center;justify-content:center}
+.cmt .c{flex:1;min-width:0}
+.cmt .c .h{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--sub);margin-bottom:5px;flex-wrap:wrap}
+.cmt .c .h b{color:#252933;font-weight:500;font-size:13.5px}
+.cmt .c .h .au{background:#eaf2ff;color:#1e80ff;font-size:11px;padding:0 4px;border-radius:2px}
+.cmt .c .t{font-size:14.5px;line-height:1.75;color:#252933}
+.cmt .c .f{display:flex;gap:18px;font-size:12.5px;color:#8a919f;margin-top:10px}
+.cmt .c .f span{cursor:pointer}
+.cmt .c .f span:hover{color:var(--blue)}
+
+/* 推荐阅读 */
+.rec{margin-top:32px}
+.rec h3{font-size:16px;font-weight:700;margin-bottom:6px}
+.rec .it{padding:14px 0;border-bottom:1px solid #f7f8fa}
+.rec .it h4{font-size:15.5px;font-weight:500;line-height:1.6;color:#252933}
+.rec .it:hover h4{color:var(--blue)}
+.rec .it p{font-size:12.5px;color:var(--sub);margin-top:6px;display:flex;gap:14px}
+
+/* 右侧栏 */
+.right{width:260px;flex:0 0 260px;position:sticky;top:84px}
+.r-card{border:1px solid #f1f1f1;border-radius:6px;padding:16px;margin-bottom:16px;background:#fff}
+.r-card .who{display:flex;align-items:center;gap:10px;margin-bottom:12px}
+.r-card .who .a{width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,#6aa9ff,#1e80ff);
+  color:#fff;font-size:16px;font-weight:600;display:flex;align-items:center;justify-content:center}
+.r-card .who .n{font-size:14.5px;font-weight:500}
+.r-card .who .d{font-size:12px;color:var(--sub);margin-top:2px}
+.r-card .stats{display:flex;gap:18px;font-size:12px;color:var(--sub);margin-bottom:12px}
+.r-card .stats b{display:block;color:#252933;font-size:14px;font-weight:600}
+.r-card .fbtn{display:block;text-align:center;background:var(--blue);color:#fff;font-size:13.5px;height:32px;
+  line-height:32px;border-radius:4px}
+.r-card h5{font-size:14px;font-weight:600;margin-bottom:10px;color:#252933}
+.r-card .li{display:block;font-size:13px;color:#515767;line-height:1.6;padding:7px 0;border-bottom:1px solid #f7f8fa}
+.r-card .li:last-child{border-bottom:none}
+.r-card .li:hover{color:var(--blue)}
+.r-ad{border-radius:6px;overflow:hidden;background:linear-gradient(150deg,#fff5e6,#ffe9c9);padding:16px;
+  position:relative;border:1px solid #ffe2b8}
+.r-ad .lb{position:absolute;top:6px;right:8px;font-size:10px;color:#c99a4e}
+.r-ad h5{font-size:14.5px;color:#7a4b10;font-weight:600;line-height:1.5;margin:14px 0 8px}
+.r-ad p{font-size:12px;color:#a2793e;line-height:1.6}
+.r-ad .go{display:inline-block;margin-top:12px;background:#f5a623;color:#fff;font-size:12px;padding:5px 12px;border-radius:3px}
+
+/* 页脚 */
+.ft{border-top:1px solid #f1f1f1;padding:28px 0 40px;margin-top:20px;background:#fafbfc}
+.ft-in{max-width:1240px;margin:0 auto;padding:0 20px;font-size:12.5px;color:#8a919f;display:flex;gap:26px;flex-wrap:wrap}
+.ft-in a{color:#8a919f;margin-right:14px}
+.ft-in .cp{margin-left:auto}
+
+@media(max-width:1080px){.left{display:none}.right{display:none}}
+</style>
+</head>
+<body>
+
+<!-- ============ 顶栏 ============ -->
+<header class="hd">
+  <div class="hd-in">
+    <a class="logo" href="#">
+      <i><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linejoin="round">
+        <path d="M4 16l8 5 8-5M4 12l8 5 8-5M12 3l5 4.5L12 12 7 7.5z"/></svg></i>掘金
+    </a>
+    <nav class="nav"><a href="#" class="on">首页</a><a href="#">沸点</a><a href="#">课程</a><a href="#">直播</a><a href="#">活动</a></nav>
+    <div class="srch"><span>⌕</span><input type="text" placeholder="搜索掘金" data-tf-slot="search"></div>
+    <div class="hd-r">
+      <a href="#">创作者中心</a>
+      <a class="wr" href="#">写文章</a>
+      <div class="ava">舟</div>
+    </div>
+  </div>
+</header>
+
+<!-- ============ banner 广告 ============ -->
+<div class="banner">
+  <div class="b">
+    <span class="ad">广告</span>
+    <div>
+      <h4>字节跳动技术沙龙 · 第 48 期</h4>
+      <p>11.28 上海 · 高并发系统的可观测性实践 · 线下 200 席</p>
+    </div>
+    <a class="go" href="#">立即报名</a>
+  </div>
+</div>
+
+<div class="wrap">
+  <!-- 左：目录 -->
+  <aside class="left">
+    <div class="catalog" data-tf-slot="toc">
+      <div class="h">目录</div>
+      <a href="#s1" class="on">一、顺序是一种局部共识</a>
+      <a href="#s2">二、缓存不是优化项</a>
+      <a href="#s3">三、那个每周崩一次的 bug</a>
+      <a href="#s4">四、写进工程习惯</a>
+    </div>
+  </aside>
+
+  <!-- 中：正文 -->
+  <main class="main">
+    <h1 class="art-title" data-tf-slot="article-title">缓存、可见性与"看起来对"的程序</h1>
+
+    <div class="author-row">
+      <div class="a1">舟</div>
+      <div>
+        <div class="nm">云舟</div>
+        <div class="mt">2026-10-28 21:14 <b>·</b> 阅读 <b data-tf-slot="stat-read">2,184</b> <b>·</b> 约 9 分钟</div>
+      </div>
+      <a class="follow" href="#">+ 关注</a>
+    </div>
+
+    <article class="article" data-tf-slot="body">
+      <p>我们习惯把程序看成一条按顺序执行的指令流：先算 A，再算 B，最后写 C。<strong>先发生的事一定先发生</strong>——这句话在单核时代几乎是不证自明的，因为硬件也是这么执行的。</p>
+
+      <p>但当你把视角从单核挪到多核，从进程内挪到进程外，"顺序"这个词就开始松动了。它并没有消失，只是从<em>客观事实</em>变成了<em>局部共识</em>：每个核都以为自己看到了正确的顺序，而它们看到的顺序可以互不相同。</p>
+
+      <h2 id="s1">一、顺序是一种局部共识</h2>
+
+      <p>硬件做了两件事，而且它们互相配合：一是每个核都有自己的 store buffer 和 invalidate queue；二是允许在不改变单线程语义的前提下，对指令进行重排。这两件事合起来，就是所有内存模型问题的源头。</p>
+
+      <blockquote>一个程序如果只在单线程下被验证过，那么它对"正确"的证明就只覆盖了所有可能执行的交错中的一小部分。</blockquote>
+
+      <p>下面这段代码来自一本讲并发的老书，几乎每一版都会引用它。生产者写数据、置标志位；消费者自旋等待标志位，然后读数据：</p>
+
+      <div class="code">
+        <div class="bar"><span class="dot"></span><span class="dot"></span><span class="dot"></span>
+          <span class="lang">cpp</span><span class="cp">复制</span></div>
+        <pre><span class="cm">// 生产者线程</span>
+data = <span class="num">42</span>;
+ready = <span class="num">1</span>;
+
+<span class="cm">// 消费者线程</span>
+<span class="kw">while</span> (!ready) { <span class="cm">/* spin */</span> }
+<span class="fn">assert</span>(data == <span class="num">42</span>);   <span class="cm">// 有可能失败</span></pre>
+      </div>
+
+      <p>很多人第一次看到这个例子的反应是"编译器优化了吧"。把 <code class="inl">-O2</code> 关掉，加上 <code class="inl">volatile</code>，问题照旧。因为重排不只发生在编译器，也发生在 CPU 的乱序执行单元和缓存一致性协议之间。</p>
+
+      <h2 id="s2">二、缓存不是优化项</h2>
+
+      <p>缓存是现代计算机得以存在的前提。CPU 与主存之间的延迟差已经拉开到两个数量级以上：一次 L1 命中大约 4 个周期，一次访存要 200 到 300 个周期。如果每个变量都要去主存取，那么哪怕最平凡的程序也会慢到不可用。</p>
+
+      <div class="figure">
+        <div class="ph">store buffer / invalidate queue 示意</div>
+        <div class="cap">图 4-3　写操作"看起来"立刻完成，但它还没落到缓存行</div>
+      </div>
+
+      <h2 id="s3">三、那个"每周崩一次"的 bug</h2>
+
+      <p>这类 bug 有一个非常稳定的特征：它在单线程压测里跑一万次都正确，在四核机器上每周崩一次；日志里没有异常，core dump 里变量值看起来"完全正常"。它不偶发，它是必然，只是在等一个足够坏的时序。</p>
+
+      <ul>
+        <li><strong>复现条件苛刻</strong>：需要两个核同时进入临界窗口，且其中一个恰好被中断或迁移；</li>
+        <li><strong>加日志即消失</strong>：因为日志引入了屏障，时序被"治好"了——这也是最迷惑人的地方；</li>
+        <li><strong>修复成本极低，定位成本极高</strong>：最后往往只是补一个 <code class="inl">std::atomic</code> 的 acquire/release 语义。</li>
+      </ul>
+
+      <h2 id="s4">四、写进工程习惯</h2>
+
+      <p>理解内存模型之后，落到工程上其实只有很少几条可执行的规则：共享状态默认不可变；可变共享状态一律走同步原语，不要靠"我觉得这里不会重排"；任何时候看到 <code class="inl">if (flag)</code> 去读另一份数据，都停下来想一秒。</p>
+
+      <p>真正需要建立的直觉不是"记住 MESI 的四个状态"，而是：<strong>任何跨线程共享的可变状态，都必须显式地建立 happens-before 关系</strong>。编译器与硬件只对单线程负责，跨线程的顺序需要你自己付钱。</p>
+    </article>
+
+    <div class="art-foot">
+      <div class="cat">
+        分类：<span class="chip blue">后端</span>
+        标签：<span class="chip">并发编程</span><span class="chip">内存模型</span><span class="chip">分布式</span>
+      </div>
+      <div class="tri">
+        <div class="b"><div class="cir">👍</div><span data-tf-slot="stat-like">89</span></div>
+        <div class="b"><div class="cir">💬</div><span>7</span></div>
+        <div class="b"><div class="cir">⭐</div><span data-tf-slot="stat-collect">36</span></div>
+        <div class="b"><div class="cir">↗</div><span>分享</span></div>
+      </div>
+    </div>
+
+    <!-- 评论 -->
+    <section class="cmt-sec">
+      <h3>评论 <span>7</span></h3>
+      <div class="cmt-input">
+        <div class="av">舟</div>
+        <div class="in">
+          <textarea placeholder="写下你的评论…"></textarea>
+          <div class="r"><button class="s">发布</button></div>
+        </div>
+      </div>
+
+      <div data-tf-slot="comments">
+        <div class="cmt">
+          <div class="av" style="background:linear-gradient(135deg,#ffb26b,#f0862f)">K</div>
+          <div class="c">
+            <div class="h"><b>kernel_panic_</b><span class="au">作者</span><span>2 小时前</span></div>
+            <div class="t">"加日志即消失"这句太真实了。我们上次排查一个丢更新的问题，最后发现是打印语句里的锁把时序改了，白查两天。</div>
+            <div class="f"><span>👍 12</span><span>回复</span></div>
+          </div>
+        </div>
+        <div class="cmt">
+          <div class="av" style="background:linear-gradient(135deg,#7bc8a4,#3f9b6d)">阿</div>
+          <div class="c">
+            <div class="h"><b>阿伟在写bug</b><span>5 小时前</span></div>
+            <div class="t">图 4-3 能发个原图吗？手机上有点糊，看不太清 store buffer 的位置。</div>
+            <div class="f"><span>👍 3</span><span>回复</span></div>
+          </div>
+        </div>
+        <div class="cmt">
+          <div class="av" style="background:linear-gradient(135deg,#a78bfa,#7c5cf0)">L</div>
+          <div class="c">
+            <div class="h"><b>Leo_Go</b><span>昨天 22:41</span></div>
+            <div class="t">补充一点：C++ 的 volatile 和 Java 的 volatile 完全不是一回事，很多文章混着讲，新人很容易被带偏。</div>
+            <div class="f"><span>👍 28</span><span>回复</span></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="rec">
+      <h3>推荐阅读</h3>
+      <a class="it" href="#"><h4>Pod 一直 CrashLoopBackOff？我排查了 6 个小时，最后发现是探针写错了</h4>
+        <p><span>1.2w 阅读</span><span>·</span><span>3 天前</span><span>·</span><span>Kubernetes</span></p></a>
+      <a class="it" href="#"><h4>Redis 缓存击穿、穿透、雪崩，到底该怎么区分？一张图讲清楚</h4>
+        <p><span>8624 阅读</span><span>·</span><span>5 天前</span><span>·</span><span>Redis</span></p></a>
+    </section>
+  </main>
+
+  <!-- 右：作者卡 + 推荐 -->
+  <aside class="right">
+    <div class="r-card">
+      <div class="who">
+        <div class="a">舟</div>
+        <div><div class="n">云舟</div><div class="d">后端工程师 · 分布式</div></div>
+      </div>
+      <div class="stats">
+        <div><b>128</b>文章</div><div><b>3.4w</b>关注者</div><div><b>1.2w</b>赞</div>
+      </div>
+      <a class="fbtn" href="#">关注</a>
+    </div>
+
+    <div class="r-card">
+      <h5>文章被以下专栏收录</h5>
+      <a class="li" href="#">《分布式系统手记》<br><span style="font-size:12px;color:#8a919f">23 篇文章 · 1.8k 订阅</span></a>
+    </div>
+
+    <div class="r-ad">
+      <span class="lb">广告</span>
+      <h5>云原生高并发<br>实战训练营</h5>
+      <p>12 节直播 + 4 个项目实战<br>今日 0 元试听</p>
+      <a class="go" href="#">领取名额</a>
+    </div>
+
+    <div class="r-card">
+      <h5>热门推荐</h5>
+      <a class="li" href="#">MySQL 索引失效的 11 种场景，第 7 种最坑</a>
+      <a class="li" href="#">我把公司 CI 从 22 分钟优化到 4 分钟</a>
+      <a class="li" href="#">写给后端的 Nginx 配置清单（可直接抄）</a>
+      <a class="li" href="#">一次 OOM 事故复盘：堆内存到底被谁吃了</a>
+    </div>
+  </aside>
+</div>
+
+<footer class="ft">
+  <div class="ft-in">
+    <div><a href="#">关于我们</a><a href="#">加入我们</a><a href="#">用户协议</a><a href="#">隐私政策</a></div>
+    <div class="cp">©2026 掘金 · 京ICP备16000000号</div>
+  </div>
+</footer>
+
+<script>
+(function () {
+  var links = document.querySelectorAll('.catalog a');
+  var heads = [].map.call(links, function (a) { return document.querySelector(a.getAttribute('href')); });
+  function sync() {
+    var y = window.scrollY + 130, cur = 0;
+    heads.forEach(function (h, i) { if (h && h.offsetTop <= y) cur = i; });
+    links.forEach(function (a, i) { a.classList.toggle('on', i === cur); });
+  }
+  window.addEventListener('scroll', sync, { passive: true }); sync();
+})();
+</script>
+</body>
+</html>

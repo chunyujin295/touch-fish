@@ -1,0 +1,65 @@
+/* 站点层：只改"这家站长的样子"，不改骨架。
+   想加一个新站点，这里加一段 + sites.json 加一条即可。 */
+
+body.s-csdn{--a:#fc5531;--as:rgba(252,85,49,.08);--ab:rgba(252,85,49,.20);--w:1180px;--r:8px}
+body.s-juejin{--a:#1e80ff;--as:rgba(30,128,255,.08);--ab:rgba(30,128,255,.20);--w:1160px;--r:4px}
+body.s-juejin .prose{font-size:16.5px}
+body.s-zhihu{--a:#0084ff;--as:rgba(0,132,255,.08);--ab:rgba(0,132,255,.18);--w:1040px;--r:4px}
+body.s-zhihu .prose{font-size:16.5px;line-height:1.95}
+body.s-cnblogs{--a:#2f9e4f;--as:rgba(47,158,79,.08);--ab:rgba(47,158,79,.20);--w:1140px;--r:3px}
+body.s-wechat{--a:#07c160;--as:rgba(7,193,96,.08);--ab:rgba(7,193,96,.18);--w:900px;--r:2px;--line:#eaeaea}
+body.s-wechat .grid{grid-template-columns:minmax(0,1fr);gap:0}
+body.s-wechat .side{display:none}
+body.s-wechat main{border:none;border-radius:0;padding:24px 8px 28px}
+body.s-wechat h1.pt{font-size:22px;letter-spacing:0}
+body.s-wechat .prose{font-size:16px;line-height:1.95;letter-spacing:.3px}
+body.s-wechat .ntc{display:none}
+body.s-github{--a:#0969da;--as:rgba(9,105,218,.08);--ab:rgba(9,105,218,.20);--w:1012px;--r:6px;--line:#d0d7de}
+body.s-github .prose{font-size:15.5px}
+body.s-github .prose h2{border-left:none;padding-left:0;padding-bottom:6px;border-bottom:1px solid #d8dee4;font-size:19px}
+body.s-github .cm-h:before{display:none}
+body.s-stackoverflow{--a:#f48024;--as:rgba(244,128,36,.08);--ab:rgba(244,128,36,.20);--w:1100px;--r:3px;--line:#d6d9dc}
+body.s-stackoverflow .prose{font-size:15px}
+body.s-confluence{--a:#0052cc;--as:rgba(0,82,204,.08);--ab:rgba(0,82,204,.20);--w:1120px;--r:3px}
+body.s-confluence .prose h2{border-left:none;padding-left:0;padding-bottom:6px;border-bottom:1px solid var(--line)}
+body.s-confluence .cpr{display:none}
+body.s-dxy{--a:#0891b2;--as:rgba(8,145,178,.08);--ab:rgba(8,145,178,.20);--w:1140px}
+body.s-xuekan{--a:#8a6a2f;--as:rgba(138,106,47,.10);--ab:rgba(138,106,47,.24);--w:1140px}
+body.s-xuekan .hd.dk .lg .mk{background:linear-gradient(140deg,#c8a15a,#8f6d2f)}
+body.s-xuekan .hd.dk .lg .tagx{color:#e5c07b;background:rgba(229,192,123,.14)}
+body.s-xuekan .prose h2{border-left-color:#c8a15a}
+body.s-muchong{--a:#15803d;--as:rgba(21,128,61,.08);--ab:rgba(21,128,61,.20);--w:1080px}
+body.s-mathchina{--a:#4f46e5;--as:rgba(79,70,229,.08);--ab:rgba(79,70,229,.20);--w:1080px}
+body.s-iphy{--a:#7c3aed;--as:rgba(124,58,237,.08);--ab:rgba(124,58,237,.20);--w:1080px}
+
+/* ============ 站点细节件 ============
+   真实站点之间最容易被认出来的差别，往往不在版式，而在这类零碎元件上。
+   模板正文写在 sites.json 的 detail_top / detail_bottom 里，这里只管长相。 */
+
+/* CSDN：文章顶部的专栏收录条 */
+.colbar{display:flex;align-items:center;gap:9px;flex-wrap:wrap;
+  background:linear-gradient(90deg,rgba(252,85,49,.06),rgba(252,85,49,0));
+  border-left:3px solid var(--a);border-radius:0 6px 6px 0;
+  padding:9px 14px;margin:0 0 18px;font-size:12.5px;color:var(--ink3)}
+.colbar b{font-weight:600;color:var(--a);letter-spacing:.5px}
+.colbar a{color:var(--ink2);font-weight:500}
+.colbar span{color:var(--ink3)}
+.colbar i{margin-left:auto;font-style:normal;font-size:12px;color:#fff;background:var(--a);
+  border-radius:20px;padding:3px 12px;cursor:pointer}
+
+/* 博客园：文末那行 posted @ */
+.posted{margin:22px 0 0;padding-top:14px;border-top:1px dashed var(--line);
+  font-family:ui-monospace,Consolas,monospace;font-size:12px;color:var(--ink3);line-height:1.9}
+.posted a{color:var(--a)}
+body.s-cnblogs .acts{display:none}
+
+/* 知乎：底部赞同条 */
+.zvote{display:flex;align-items:center;gap:9px;margin:24px 0 4px;flex-wrap:wrap}
+.zvote span{display:inline-flex;align-items:center;gap:6px;font-size:13.5px;border-radius:3px;
+  padding:9px 16px;cursor:pointer;transition:.15s}
+.zvote .up{background:rgba(0,132,255,.10);color:#0084ff;font-weight:600}
+.zvote .up:hover{background:rgba(0,132,255,.16)}
+.zvote .dn{border:1px solid rgba(0,132,255,.35);color:#0084ff;padding:9px 13px}
+.zvote .cm,.zvote .sh,.zvote .st{border:1px solid var(--line);color:var(--ink3)}
+body.s-zhihu .acts{display:none}
+

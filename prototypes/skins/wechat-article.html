@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>一次线上事故，让我重新理解了内存屏障</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2307c160'/%3E%3Cpath d='M9 20c1.5 2 3.5 3 5.5 3 2.5 0 4-1.3 4-3.2 0-1.8-1.3-2.6-4-3.4-3.6-1-5.5-2.5-5.5-5.2C9 8.3 11.2 6.5 14.6 6.5c2 0 3.6.6 4.9 1.8' stroke='%23fff' stroke-width='2.2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E">
+<style>
+:root{
+  --text:#3f3f3f; --gray:#a3a3a3; --link:#576b95; --line:#eaeaea;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue","Microsoft YaHei",sans-serif;
+  background:#fff;color:var(--text);-webkit-font-smoothing:antialiased}
+a{color:var(--link);text-decoration:none}
+
+/* 顶部极简条 */
+.topbar{height:44px;display:flex;align-items:center;justify-content:flex-end;padding:0 20px;position:relative}
+.topbar .more{width:30px;height:30px;display:flex;align-items:center;justify-content:center;color:#a3a3a3;
+  font-size:18px;letter-spacing:1px;cursor:pointer;border-radius:4px}
+.topbar .more:hover{background:#f5f5f5}
+
+/* 文章容器 */
+.page{max-width:677px;margin:0 auto;padding:8px 16px 60px}
+h1.title{font-size:22px;line-height:1.5;font-weight:600;color:#333;letter-spacing:.3px;margin-bottom:14px}
+.meta{font-size:14px;color:var(--gray);line-height:1.9;margin-bottom:26px;display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.meta .orig{color:#f5a623;border:1px solid #f5d9a8;border-radius:2px;font-size:12px;padding:0 4px;line-height:1.4}
+.meta .acct{color:#576b95}
+.meta .dot{color:#d8d8d8}
+
+/* 正文 */
+.content{font-size:17px;line-height:1.85;color:var(--text);letter-spacing:.5px;text-align:justify}
+.content p{margin-bottom:1.5em}
+.content strong{font-weight:600;color:#333}
+.content .hl{background:linear-gradient(transparent 58%,#fdf0b8 58%);padding:0 2px}
+.content h2{font-size:17px;font-weight:600;color:#333;margin:2em 0 1em;padding-left:10px;border-left:4px solid #2f7ed8;
+  line-height:1.6;letter-spacing:.5px}
+.content h3{font-size:17px;font-weight:600;margin:1.6em 0 .8em;color:#333}
+.content blockquote{margin:1.5em 0;padding:14px 16px;background:#f7f7f7;border-radius:2px;color:#666;font-size:15.5px;
+  line-height:1.85}
+.content blockquote p{margin:0}
+.content ol,.content ul{margin:0 0 1.5em;padding-left:1.4em}
+.content li{margin-bottom:.6em;line-height:1.85}
+.content .inl{background:#f2f2f2;padding:1px 5px;border-radius:2px;font-size:15px;color:#c7254e;
+  font-family:Consolas,Menlo,monospace}
+.codeblock{background:#fafafa;border:1px solid #eee;border-radius:4px;padding:14px 16px;margin:1.5em 0;overflow:auto;
+  font-family:Consolas,Menlo,monospace;font-size:14px;line-height:1.7;color:#444;letter-spacing:0;white-space:pre}
+.codeblock .cm{color:#999}
+.codeblock .kw{color:#07c;font-weight:600}
+.codeblock .num{color:#c7254e}
+.imgwrap{margin:1.8em 0;text-align:center}
+.imgwrap .ph{height:190px;background:#f7f8fa;border-radius:3px;display:flex;align-items:center;justify-content:center;
+  color:#c9cdd4;font-size:13px;letter-spacing:1px}
+.imgwrap .cap{font-size:13px;color:var(--gray);margin-top:8px;letter-spacing:.3px}
+.divider{text-align:center;color:#d8d8d8;letter-spacing:6px;font-size:13px;margin:2em 0}
+
+/* 文中广告（小程序卡片风格） */
+.ad-inline{margin:1.8em 0;border:1px solid #f0f0f0;border-radius:4px;padding:14px;display:flex;gap:12px;
+  align-items:center;background:#fcfcfc;position:relative}
+.ad-inline .thumb{width:56px;height:56px;border-radius:6px;flex:0 0 56px;
+  background:linear-gradient(135deg,#2f7ed8,#1a5fb4);display:flex;align-items:center;justify-content:center;
+  color:#fff;font-size:20px;font-weight:600}
+.ad-inline .t{flex:1;font-size:15px;color:#333;line-height:1.5;font-weight:500}
+.ad-inline .t small{display:block;font-size:13px;color:var(--gray);font-weight:400;margin-top:4px}
+.ad-inline .lbl{position:absolute;bottom:4px;right:6px;font-size:10px;color:#ccc}
+
+/* 底部操作 */
+.actions{margin:2.4em 0 0;padding-top:22px;border-top:1px solid #f2f2f2;text-align:center}
+.actions .read{font-size:14px;color:var(--gray);margin-bottom:22px;letter-spacing:.5px}
+.actions .read b{color:#a3a3a3;font-weight:400}
+.actions .row{display:flex;justify-content:center;gap:44px;color:#8c8c8c;font-size:13px}
+.actions .row div{display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer}
+.actions .row svg{opacity:.75}
+
+/* 公众号名片 */
+.card{margin:34px 0 0;border-top:1px solid #f2f2f2;padding-top:24px}
+.card .who{display:flex;align-items:center;gap:12px}
+.card .who .a{width:44px;height:44px;border-radius:50%;flex:0 0 44px;background:linear-gradient(135deg,#68b6ff,#2f7ed8);
+  color:#fff;font-size:16px;font-weight:600;display:flex;align-items:center;justify-content:center}
+.card .who .n{font-size:16px;color:#333;font-weight:500}
+.card .who .d{font-size:13px;color:var(--gray);margin-top:4px}
+.card .who .btn{margin-left:auto;border:1px solid #dcdcdc;border-radius:3px;color:#333;font-size:13px;
+  padding:5px 14px;background:#fff}
+.card .qr{display:flex;align-items:center;gap:14px;margin-top:18px;padding-top:18px;border-top:1px solid #f7f7f7}
+.card .qr .code{width:64px;height:64px;flex:0 0 64px;border:1px solid #eee;border-radius:2px;background:#fff;
+  display:grid;grid-template-columns:repeat(25,1fr);grid-template-rows:repeat(25,1fr);padding:3px;overflow:hidden}
+.card .qr .code i{display:block}
+.card .qr .txt{font-size:13.5px;color:#666;line-height:1.8}
+.card .qr .txt b{color:#333;font-weight:500}
+
+/* 相关阅读 */
+.rel{margin-top:30px;padding-top:20px;border-top:1px solid #f2f2f2}
+.rel .h{font-size:13px;color:var(--gray);margin-bottom:10px}
+.rel a{display:block;font-size:15px;color:#333;line-height:1.8;padding:6px 0}
+.rel a:hover{color:var(--link)}
+
+/* 底部提示 */
+.bottom-hint{text-align:center;font-size:13px;color:#bfbfbf;margin-top:34px;line-height:1.9}
+</style>
+</head>
+<body>
+
+<div class="topbar"><div class="more">···</div></div>
+
+<div class="page">
+  <h1 class="title" data-tf-slot="article-title">一次线上事故，让我重新理解了内存屏障</h1>
+
+  <div class="meta">
+    <span class="orig">原创</span>
+    <span class="acct">云舟的技术笔记</span>
+    <span class="dot">·</span>
+    <span>2026-10-28 21:14</span>
+    <span class="dot">·</span>
+    <span>上海</span>
+  </div>
+
+  <article class="content" data-tf-slot="body">
+    <p>上周三凌晨两点，我们的服务在扩容到 8 核之后，开始出现一种很难解释的现象：某个接口每小时会有两三次返回错误的数据，重启之后又好了，压测的时候怎么都复现不出来。</p>
+
+    <p>排查了两天，最后定位到一行<span class="hl">看起来完全正确</span>的代码。这事让我重新把内存模型翻了一遍，也让我意识到：我们平时写的并发代码，很多只是"看起来对"。</p>
+
+    <h2>一、顺序是一种局部共识</h2>
+
+    <p>我们习惯把程序看成一条按顺序执行的指令流：先算 A，再算 B，最后写 C。<strong>先发生的事一定先发生</strong>——这句话在单核时代几乎是不证自明的。</p>
+
+    <p>但把视角从单核挪到多核，"顺序"就开始松动了。它并没有消失，只是从客观事实变成了<strong>局部共识</strong>：每个核都以为自己看到了正确的顺序，而它们看到的顺序可以互不相同。</p>
+
+    <blockquote>一个程序如果只在单线程下被验证过，那么它对"正确"的证明就只覆盖了所有可能执行的交错中的一小部分。</blockquote>
+
+    <p>硬件做了两件事，而且它们互相配合：一是每个核都有自己的 store buffer 和 invalidate queue；二是允许在不改变单线程语义的前提下对指令重排。这两件事合起来，就是所有内存模型问题的源头。</p>
+
+    <div class="codeblock"><span class="cm">// 生产者线程</span>
+data = <span class="num">42</span>;
+ready = <span class="num">1</span>;
+
+<span class="cm">// 消费者线程</span>
+<span class="kw">while</span> (!ready) { <span class="cm">/* spin */</span> }
+assert(data == <span class="num">42</span>);   <span class="cm">// 有可能失败</span></div>
+
+    <p>很多人第一次看到这个例子的反应是"编译器优化了吧"。把 <span class="inl">-O2</span> 关掉，加上 <span class="inl">volatile</span>，问题照旧。因为重排不只发生在编译器，也发生在 CPU 的乱序执行单元和缓存一致性协议之间。</p>
+
+    <div class="ad-inline">
+      <div class="thumb">云</div>
+      <div class="t">高并发系统设计实战训练营<small>12 节直播 + 4 个可写进简历的项目，今日 0 元试听</small></div>
+      <span class="lbl">广告</span>
+    </div>
+
+    <h2>二、那个"每周崩一次"的 bug</h2>
+
+    <p>这类问题有一个非常稳定的特征：它在单线程压测里跑一万次都正确，在多核机器上每周崩一次；日志里没有异常，core dump 里变量值看起来"完全正常"。</p>
+
+    <p>它不偶发，它是必然，<strong>只是在等一个足够坏的时序</strong>。</p>
+
+    <ul>
+      <li><strong>复现条件苛刻</strong>：需要两个核同时进入临界窗口，且其中一个恰好被中断或迁移；</li>
+      <li><strong>加日志即消失</strong>：因为日志引入了屏障，时序被"治好"了——这也是最迷惑人的地方；</li>
+      <li><strong>修复成本极低，定位成本极高</strong>：最后往往只是补一个 <span class="inl">std::atomic</span> 的 acquire/release 语义。</li>
+    </ul>
+
+    <div class="imgwrap">
+      <div class="ph">store buffer / invalidate queue 示意图</div>
+      <div class="cap">图 4-3　写操作"看起来"立刻完成，但它还没落到缓存行</div>
+    </div>
+
+    <h2>三、写进工程习惯</h2>
+
+    <p>理解内存模型之后，落到工程上其实只有很少几条可执行的规则：共享状态默认不可变；可变共享状态一律走同步原语，不要靠"我觉得这里不会重排"；任何时候看到 <span class="inl">if (flag)</span> 去读另一份数据，都停下来想一秒。</p>
+
+    <p>真正需要建立的直觉不是"记住 MESI 的四个状态"，而是：<strong>任何跨线程共享的可变状态，都必须显式地建立 happens-before 关系</strong>。</p>
+
+    <p>编译器与硬件只对单线程负责，跨线程的顺序需要你自己付钱。</p>
+
+    <div class="divider">· · ·</div>
+
+    <p style="font-size:15.5px;color:#888">如果这篇对你有用，点个「在看」，让更多在半夜排查 bug 的人看到。</p>
+  </article>
+
+  <div class="actions">
+    <div class="read">阅读 <b data-tf-slot="stat-read">2.1万</b></div>
+    <div class="row">
+      <div>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#8c8c8c" stroke-width="1.6">
+          <path d="M7 21V9l5-7 1.4 1.2c.4.4.6.9.5 1.4L13 9h6.3c1.2 0 2 1.1 1.8 2.3l-1.4 7c-.2 1-1.1 1.7-2 1.7H7z"/>
+          <path d="M7 9H3v12h4" stroke-linecap="round"/>
+        </svg>
+        <span>赞</span>
+      </div>
+      <div>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#8c8c8c" stroke-width="1.6">
+          <circle cx="12" cy="12" r="3.2"/>
+          <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/>
+        </svg>
+        <span>在看</span>
+      </div>
+      <div>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#8c8c8c" stroke-width="1.6">
+          <path d="M4 12v7a1 1 0 001 1h14a1 1 0 001-1v-7M12 3v13M8 7l4-4 4 4" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span>分享</span>
+      </div>
+      <div>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#8c8c8c" stroke-width="1.6">
+          <path d="M21 11.5a7.5 7.5 0 01-10.9 6.7L4 20l1.4-4.2A7.5 7.5 0 1121 11.5z"/>
+        </svg>
+        <span>留言</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="who">
+      <div class="a">舟</div>
+      <div>
+        <div class="n">云舟的技术笔记</div>
+        <div class="d">写代码，也写代码为什么这样写</div>
+      </div>
+      <a class="btn" href="#">关注</a>
+    </div>
+    <div class="qr">
+      <div class="code"></div>
+      <div class="txt"><b>微信扫一扫</b><br>关注该公众号</div>
+    </div>
+  </div>
+
+  <div class="rel">
+    <div class="h">相关阅读</div>
+    <a href="#">MESI 协议到底在解决什么问题</a>
+    <a href="#">为什么你的压测结果总是不可信</a>
+    <a href="#">一次 OOM 事故复盘：堆内存到底被谁吃了</a>
+  </div>
+
+  <div class="bottom-hint">预览时标签不可点<br>继续滑动看下一个</div>
+</div>
+
+<script>
+(function () {
+  var box = document.querySelector('.card .qr .code');
+  if (box) {
+    var N = 25, seed = 20261102;
+    function rnd() { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; }
+    var html = '';
+    for (var y = 0; y < N; y++) {
+      for (var x = 0; x < N; x++) {
+        var on;
+        if ((x < 7 && y < 7) || (x >= N - 7 && y < 7) || (x < 7 && y >= N - 7)) {
+          var fx = x < 7 ? x : N - 1 - x;
+          var fy = y < 7 ? y : N - 1 - y;
+          on = (fx === 0 || fx === 6 || fy === 0 || fy === 6 || (fx >= 2 && fx <= 4 && fy >= 2 && fy <= 4));
+        } else if (x === 6 || y === 6) {
+          on = (x + y) % 2 === 0;
+        } else {
+          on = rnd() > 0.52;
+        }
+        html += '<i style="background:' + (on ? '#111' : '#fff') + '"></i>';
+      }
+    }
+    box.innerHTML = html;
+  }
+
+  var n = 21000, el = document.querySelector('[data-tf-slot="stat-read"]');
+  setInterval(function () {
+    if (document.hidden) return;
+    n += 1;
+    el.textContent = n >= 100000 ? "10万+" : (n / 10000).toFixed(1) + "万";
+  }, 65000);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,891 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>TouchFish · 主题包实验台</title>
+<style>
+:root{
+  --ink:#101828; --ink2:#475467; --ink3:#98a2b3; --line:#e7eaee;
+  --lab:#0f172a; --accent:#d97706;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+  background:#eef0f3;color:var(--ink);font-size:14px;line-height:1.65;-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}
+
+/* ============ 实验台控制条（不是伪装页的一部分） ============ */
+.lab{background:var(--lab);color:#fff;position:sticky;top:0;z-index:80;box-shadow:0 2px 14px rgba(16,24,40,.16)}
+.lab-in{max-width:1180px;margin:0 auto;padding:13px 24px;display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+.lab-t{display:flex;align-items:center;gap:9px;font-size:13px;font-weight:600;letter-spacing:.2px}
+.lab-t .dot{width:7px;height:7px;border-radius:50%;background:#4ade80;box-shadow:0 0 0 3px rgba(74,222,128,.18)}
+.lab-t span{color:#94a3b8;font-weight:400;font-size:12px}
+.chips{display:flex;gap:7px;flex-wrap:wrap}
+.chip{display:flex;align-items:center;gap:6px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);
+  color:#cbd5e1;border-radius:999px;padding:5px 13px 5px 11px;font-size:12.5px;cursor:pointer;
+  transition:.15s;font-family:inherit;white-space:nowrap}
+.chip:hover{background:rgba(255,255,255,.14);color:#fff}
+.chip i{width:7px;height:7px;border-radius:2px;background:#64748b;transition:.15s}
+.chip.on{background:#fff;color:#0f172a;border-color:#fff;font-weight:600}
+.chip.on i{background:var(--c,#d97706)}
+.lab-r{margin-left:auto;font-size:12px;color:#94a3b8;display:flex;gap:14px;align-items:center}
+.lab-r b{color:#e2e8f0;font-weight:600}
+.lab-r .k{color:#64748b}
+
+/* ============ 预览框（假浏览器） ============ */
+.stage{max-width:1180px;margin:22px auto 0;padding:0 24px}
+.frame{background:#fff;border:1px solid #d3d8e0;border-radius:11px;overflow:hidden;box-shadow:0 14px 40px rgba(16,24,40,.1)}
+.fbar{background:#f1f3f6;border-bottom:1px solid #e0e4ea;padding:9px 14px;display:flex;align-items:center;gap:12px}
+.fdots{display:flex;gap:6px}
+.fdots i{width:10px;height:10px;border-radius:50%;background:#d5dae1}
+.fdots i:nth-child(1){background:#ff5f57}.fdots i:nth-child(2){background:#febc2e}.fdots i:nth-child(3){background:#28c840}
+.furl{flex:1;max-width:560px;margin:0 auto;background:#fff;border:1px solid #e0e4ea;border-radius:6px;
+  padding:3px 11px;font-size:12px;color:#475467;display:flex;align-items:center;gap:7px;
+  font-family:ui-monospace,Consolas,monospace;overflow:hidden;white-space:nowrap}
+.furl .lk{width:9px;height:9px;flex:0 0 9px;border:1.5px solid #12b76a;border-radius:2px}
+.ftabs{display:flex;gap:1px;width:150px;justify-content:flex-end}
+.ftabs span{font-size:11px;color:#98a2b3;background:#e6e9ee;border-radius:4px 4px 0 0;padding:2px 8px}
+
+/* ============ 站点通用 ============ */
+.site{--a:#d97706;--as:rgba(217,119,6,.08);--ab:rgba(217,119,6,.16);background:#fff;min-height:520px}
+.site.ld-{background:#fff}
+.site.dark-hd{}
+.wrap{max-width:1080px;margin:0 auto;padding:0 24px}
+
+/* header */
+.hd{border-bottom:1px solid #eceff3;background:#fff}
+.hd-in{max-width:1080px;margin:0 auto;padding:0 24px;height:56px;display:flex;align-items:center;gap:22px}
+.hd.dk{background:#1f2937;border-color:#1f2937}
+.hd.dk .lg b{color:#fff}
+.hd.dk .nav a{color:#c9d2df}
+.hd.dk .nav a.on{color:#fff;background:rgba(255,255,255,.1)}
+.hd.dk .hd-r .sbox{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.14);color:#9aa5b4}
+.hd.dk .hd-r .av{background:#374151;color:#e5e7eb}
+.lg{display:flex;align-items:center;gap:9px;font-size:15.5px;font-weight:700;letter-spacing:-.2px;flex:0 0 auto}
+.lg .mk{width:26px;height:26px;border-radius:7px;background:var(--a);color:#fff;display:flex;align-items:center;
+  justify-content:center;font-size:13px;font-weight:700;letter-spacing:0}
+.hd.dk .lg .mk{background:linear-gradient(140deg,#c8a15a,#9a7433)}
+.lg .tagx{font-size:10.5px;font-weight:500;color:var(--a);background:var(--as);border-radius:3px;padding:0 5px;margin-left:1px}
+.hd.dk .lg .tagx{color:#e2c48a;background:rgba(226,196,138,.14)}
+.nav{display:flex;gap:2px;flex:1;overflow:hidden}
+.nav a{font-size:13px;color:#475467;padding:5px 10px;border-radius:5px;white-space:nowrap}
+.nav a:hover{background:var(--as);color:var(--a)}
+.nav a.on{color:var(--a);background:var(--as);font-weight:600}
+.hd-r{display:flex;align-items:center;gap:11px;flex:0 0 auto}
+.sbox{width:132px;height:30px;border:1px solid #e3e7ec;border-radius:15px;background:#f8f9fb;color:#98a2b3;
+  font-size:12px;display:flex;align-items:center;padding:0 11px;gap:6px}
+.sbox svg{flex:0 0 12px}
+.write{background:var(--a);color:#fff;font-size:12.5px;padding:5px 12px;border-radius:5px;font-weight:500}
+.av{width:27px;height:27px;border-radius:50%;background:var(--as);color:var(--a);display:flex;align-items:center;
+  justify-content:center;font-size:12px;font-weight:600;flex:0 0 27px}
+
+/* 公告 / 版块条 */
+.ntc{background:#fffaf0;border-bottom:1px solid #f4e8d0;font-size:12.5px;color:#8a6320}
+.ntc-in{max-width:1080px;margin:0 auto;padding:7px 24px;display:flex;align-items:center;gap:9px}
+.ntc b{background:#f0b429;color:#fff;font-size:10.5px;padding:1px 5px;border-radius:3px;font-weight:600;flex:0 0 auto}
+.ntc .x{margin-left:auto;color:#c9b48a}
+
+/* 主体两栏 */
+.body-grid{display:grid;grid-template-columns:minmax(0,1fr) 292px;gap:26px;
+  max-width:1080px;margin:0 auto;padding:18px 24px 30px;align-items:start}
+.crumb{font-size:12.5px;color:#98a2b3;margin-bottom:15px;display:flex;gap:7px;flex-wrap:wrap;align-items:center}
+.crumb b{color:#475467;font-weight:400}
+.crumb .sep{color:#d0d5dd}
+
+/* 标题 */
+h1.pt{font-size:24px;line-height:1.45;font-weight:700;letter-spacing:-.4px;margin-bottom:12px}
+.mt{display:flex;align-items:center;gap:14px;font-size:12.5px;color:#98a2b3;flex-wrap:wrap;
+  padding-bottom:14px;border-bottom:1px solid #f0f2f5;margin-bottom:20px}
+.mt .au{display:flex;align-items:center;gap:7px;color:#475467;font-weight:500}
+.mt .au .av{width:22px;height:22px;flex:0 0 22px;font-size:11px}
+.mt .ro{background:#f4f5f7;border-radius:3px;padding:1px 6px;font-size:11px;color:#667085}
+.mt .sp{margin-left:auto;display:flex;gap:13px}
+
+/* 正文 */
+.prose{font-size:15.5px;line-height:1.92;color:#1f2937}
+.prose p{margin:0 0 17px}
+.prose h2{font-size:17px;font-weight:700;margin:26px 0 12px;padding-left:11px;border-left:3px solid var(--a);line-height:1.5}
+.prose ul{margin:0 0 17px;padding-left:2px;list-style:none}
+.prose ul li{position:relative;padding-left:19px;margin-bottom:8px}
+.prose ul li:before{content:"";position:absolute;left:3px;top:11px;width:5px;height:5px;border-radius:50%;background:var(--a);opacity:.55}
+.prose .q{border-left:3px solid #dfe3e8;background:#fafbfc;padding:12px 16px;border-radius:0 5px 5px 0;
+  color:#475467;font-size:14.5px;margin:0 0 17px;line-height:1.8}
+.prose .q b{color:#344054}
+.prose .nt{background:var(--as);border:1px solid var(--ab);border-radius:6px;padding:12px 15px;
+  font-size:13.5px;color:#475467;margin:0 0 17px;line-height:1.8}
+.prose .nt b{color:var(--a)}
+.code{border:1px solid #e6e9ee;border-radius:6px;overflow:hidden;margin:0 0 18px;background:#fbfcfd}
+.code-h{background:#f5f7f9;border-bottom:1px solid #e6e9ee;padding:5px 12px;display:flex;gap:10px;
+  font-size:11.5px;color:#98a2b3;font-family:ui-monospace,Consolas,monospace}
+.code-h .l{color:var(--a);font-weight:600}
+.code-h .cp{margin-left:auto}
+.code pre{padding:13px 15px;overflow-x:auto;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;
+  font-size:12.5px;line-height:1.78;color:#24292f;white-space:pre}
+.tbl{width:100%;border-collapse:collapse;font-size:13.5px;margin:0 0 18px;background:#fff}
+.tbl th,.tbl td{border:1px solid #e6e9ee;padding:8px 11px;text-align:left;vertical-align:top}
+.tbl th{background:#f8f9fb;font-weight:600;color:#475467;font-size:12.5px}
+.tbl td:first-child{color:#667085;width:34%}
+.fml{background:#fafbfc;border:1px dashed #dfe3e8;border-radius:6px;padding:13px 16px;margin:0 0 18px;
+  text-align:center;font-family:"Latin Modern Math",Georgia,serif;font-size:15.5px;color:#344054}
+.fml i{font-style:italic}
+
+/* 标签 */
+.tags{display:flex;gap:7px;flex-wrap:wrap;margin:22px 0 0}
+.tags a{font-size:12px;background:#f4f5f7;color:#667085;border-radius:3px;padding:3px 9px}
+.tags a:hover{background:var(--as);color:var(--a)}
+/* 版权条 */
+.cpr{margin-top:20px;border-top:1px dashed #e6e9ee;padding-top:13px;font-size:12px;color:#98a2b3;line-height:1.8}
+.cpr b{color:#667085;font-weight:500}
+
+/* 操作条 */
+.acts{display:flex;gap:12px;margin:22px 0 6px;font-size:13px;color:#667085}
+.acts .b{border:1px solid #e3e7ec;border-radius:19px;padding:5px 15px;display:flex;gap:6px;align-items:center}
+.acts .b.pri{border-color:var(--a);color:var(--a);background:var(--as);font-weight:500}
+
+/* 评论区 */
+.cm{background:#fff;border:1px solid #eceff3;border-radius:8px;padding:18px 20px;margin-top:24px}
+.cm-h{font-size:14px;font-weight:600;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.cm-h span{font-size:12px;color:#98a2b3;font-weight:400}
+.cmt{display:flex;gap:11px;padding:13px 0;border-top:1px solid #f2f4f7}
+.cmt:first-of-type{border-top:none;padding-top:0}
+.cmt .av{width:30px;height:30px;flex:0 0 30px;font-size:12px}
+.cmt-b{flex:1;min-width:0}
+.cmt-h{display:flex;gap:9px;align-items:baseline;font-size:12.5px;color:#98a2b3;margin-bottom:4px;flex-wrap:wrap}
+.cmt-h b{color:#344054;font-size:13px;font-weight:600}
+.cmt-h .lk{margin-left:auto;color:#b0b8c4}
+.cmt-b p{font-size:14px;line-height:1.8;color:#344054}
+.cmt-b .rep{margin-top:6px;font-size:12px;color:var(--a)}
+
+/* 论坛楼层 */
+.fl{display:flex;gap:13px;padding:20px 0;border-top:1px solid #eef0f3}
+.fl:first-child{border-top:none;padding-top:6px}
+.fl .lf{display:flex;flex-direction:column;align-items:center;gap:7px;flex:0 0 44px}
+.fl .lf .av{width:42px;height:42px;flex:0 0 42px;font-size:15px;border-radius:7px}
+.fl .lf .no{font-size:11px;color:#b0b8c4;font-family:ui-monospace,Consolas,monospace}
+.fl .rb{flex:1;min-width:0}
+.fl .rh{display:flex;gap:9px;align-items:center;font-size:12.5px;color:#98a2b3;margin-bottom:7px;flex-wrap:wrap}
+.fl .rh b{color:#1f2937;font-size:13.5px;font-weight:600}
+.fl .rh .ro{background:var(--as);color:var(--a);border-radius:3px;padding:1px 6px;font-size:11px}
+.fl .rh .rp{margin-left:auto;color:#b0b8c4;font-size:12px}
+.fl .rx{font-size:14.5px;line-height:1.85;color:#344054}
+.fl .rq{background:#f7f8fa;border-radius:4px;padding:7px 11px;font-size:13px;color:#667085;margin-bottom:8px;
+  border-left:2px solid #dfe3e8}
+.fl .rf{margin-top:8px;display:flex;gap:14px;font-size:12px;color:#b0b8c4}
+.fl .edit{font-size:11.5px;color:#c4cad3;margin-top:5px;font-style:italic}
+.reply-box{margin-top:20px;border:1px solid #eceff3;border-radius:6px;overflow:hidden}
+.reply-box .rbh{background:#f8f9fb;border-bottom:1px solid #eceff3;padding:7px 12px;font-size:12px;color:#98a2b3;
+  display:flex;gap:12px}
+.reply-box .rbh b{color:#475467;font-weight:500}
+.reply-box .rbb{padding:12px;font-size:13px;color:#b0b8c4;height:56px}
+
+/* 侧栏 */
+.aside{display:flex;flex-direction:column;gap:16px}
+.mod{border:1px solid #eceff3;border-radius:8px;overflow:hidden;background:#fff}
+.mod-h{padding:10px 14px;font-size:13px;font-weight:600;border-bottom:1px solid #f0f2f5;display:flex;align-items:center;gap:7px}
+.mod-h:before{content:"";width:3px;height:12px;border-radius:2px;background:var(--a)}
+.mod-h span{margin-left:auto;font-size:11px;color:#c0c7d1;font-weight:400}
+.mod-b{padding:8px 14px 12px}
+.item{display:flex;gap:8px;padding:5px 0;font-size:13px;color:#475467;line-height:1.5}
+.item .n{flex:0 0 15px;height:15px;border-radius:3px;font-size:10.5px;text-align:center;line-height:15px;
+  background:#f2f4f7;color:#98a2b3;font-family:ui-monospace,Consolas,monospace;margin-top:2px}
+.item .n.t{background:var(--a);color:#fff}
+.item:hover{color:var(--a)}
+.item .tx{flex:1;min-width:0}
+.item .em{color:#c0c7d1;font-size:11px;flex:0 0 auto;margin-left:6px;white-space:nowrap;margin-top:1px}
+.tagp{display:flex;gap:7px;flex-wrap:wrap;padding:2px 0 4px}
+.tagp a{font-size:12px;background:#f6f7f9;color:#667085;border-radius:3px;padding:3px 9px}
+.mod-user{padding:14px;display:flex;gap:10px;align-items:center;border-bottom:1px solid #f0f2f5}
+.mod-user .av{width:36px;height:36px;flex:0 0 36px;font-size:14px}
+.mod-user .u1{font-size:13.5px;font-weight:600}
+.mod-user .u2{font-size:11.5px;color:#98a2b3}
+.mod-user .f{margin-left:auto;font-size:12px;color:var(--a);border:1px solid var(--ab);border-radius:12px;padding:2px 10px}
+
+/* 广告 */
+.ad{position:relative;border:1px solid #eceff3;border-radius:8px;padding:13px 14px 14px;background:#fff}
+.ad:after{content:"广告";position:absolute;right:9px;top:9px;font-size:10px;color:#c0c7d1;
+  border:1px solid #eceff3;border-radius:2px;padding:0 3px;line-height:1.4}
+.ad .adt{font-size:13.5px;font-weight:600;color:#1f2937;margin-bottom:5px;padding-right:34px;line-height:1.5}
+.ad .add{font-size:12px;color:#98a2b3;line-height:1.6;margin-bottom:10px}
+.ad .adc{font-size:12px;color:var(--a);font-weight:500}
+.ad.hl{background:linear-gradient(150deg,var(--as),#fff 70%);border-color:var(--ab)}
+.ad-inline{margin:22px 0 4px;display:flex;gap:14px;align-items:center;padding:14px 16px;background:#fafbfc;
+  border:1px solid #eceff3;border-radius:7px;position:relative}
+.ad-inline .ic{width:64px;height:46px;border-radius:5px;background:linear-gradient(140deg,var(--a),var(--ab));
+  flex:0 0 64px;opacity:.85}
+.ad-inline .adt{margin-bottom:3px}
+.ad-inline .adc{margin-left:auto;flex:0 0 auto;white-space:nowrap}
+
+/* 学术版 */
+.site.acad{background:#fbfbfa}
+.site.acad h1.pt{font-family:Georgia,"Songti SC","Source Han Serif SC",serif;font-size:23px;line-height:1.55}
+.site.acad .prose{font-family:Georgia,"Songti SC",serif;font-size:15.5px;line-height:1.95;color:#262626}
+.site.acad .mod-h{font-family:inherit;font-weight:600}
+.site.acad .wrap-hd{border-bottom:2px solid #ececeb}
+.abs{background:#fff;border:1px solid #e8e8e5;border-radius:4px;padding:15px 17px;margin-bottom:22px;font-size:13.5px;line-height:1.85;color:#4b4b4b}
+.abs .ah{font-size:12px;font-weight:700;color:#8a8a85;letter-spacing:1px;margin-bottom:6px;text-transform:uppercase}
+.abs p{margin:0 0 7px}
+.abs p:last-child{margin:0}
+.abs .kw{color:#6b6b66;font-size:13px}
+.abs .kw b{color:#3f3f3c;font-weight:600}
+.refs{margin-top:26px;padding-top:16px;border-top:1px solid #ececeb;font-size:12.5px;color:#6b6b66;line-height:1.9}
+.refs .rh{font-weight:700;color:#4b4b4b;margin-bottom:6px;font-size:13px}
+
+/* 页脚 */
+.ft{border-top:1px solid #eceff3;background:#fff;margin-top:10px}
+.ft-in{max-width:1080px;margin:0 auto;padding:16px 24px 22px;font-size:11.5px;color:#b0b8c4;line-height:1.9;
+  text-align:center}
+.ft-in .links{color:#98a2b3;margin-bottom:4px}
+
+/* ============ 说明面板 ============ */
+.panel{max-width:1180px;margin:30px auto 60px;padding:0 24px}
+.panel h2{font-size:12.5px;font-weight:600;color:#98a2b3;letter-spacing:1.2px;text-transform:uppercase;
+  margin:30px 0 14px;display:flex;align-items:center;gap:12px}
+.panel h2:first-child{margin-top:0}
+.panel h2:after{content:"";flex:1;height:1px;background:#dfe3e8}
+.panel .lede{font-size:13.5px;color:#475467;margin:-4px 0 15px;max-width:820px;line-height:1.75}
+.panel .lede b{color:#101828}
+table.t{width:100%;border-collapse:collapse;background:#fff;border:1px solid #e3e7ec;border-radius:9px;
+  overflow:hidden;font-size:12.5px}
+table.t th,table.t td{padding:10px 13px;text-align:left;border-bottom:1px solid #f0f2f5;vertical-align:top;line-height:1.6}
+table.t th{background:#fafbfc;font-weight:600;color:#667085;font-size:11.5px;letter-spacing:.3px}
+table.t tr:last-child td{border-bottom:none}
+table.t td b{color:#101828}
+table.t .pk{display:flex;align-items:center;gap:6px;font-weight:600;color:#101828;white-space:nowrap}
+table.t .pk i{width:7px;height:14px;border-radius:2px;background:#ccc;flex:0 0 7px}
+table.t .ban{color:#b42318;font-size:11.5px;line-height:1.7}
+table.t .lay{font-family:ui-monospace,Consolas,monospace;font-size:11.5px;color:#475467}
+.note{background:#fffdf7;border:1px solid #f5e3b8;border-radius:9px;padding:15px 18px;font-size:13px;
+  color:#7a5c14;line-height:1.8}
+.note b{color:#5c4408}
+</style>
+</head>
+<body>
+
+<div class="lab">
+  <div class="lab-in">
+    <div class="lab-t"><span class="dot"></span>主题包实验台 <span>· 选行业，整页语境重建</span></div>
+    <div class="chips" id="chips"></div>
+    <div class="lab-r">
+      <span><span class="k">版式</span> <b id="rLay">—</b></span>
+      <span><span class="k">禁忌词</span> <b id="rBan">—</b></span>
+    </div>
+  </div>
+</div>
+
+<div class="stage">
+  <div class="frame">
+    <div class="fbar">
+      <div class="fdots"><i></i><i></i><i></i></div>
+      <div class="furl"><span class="lk"></span><span id="fUrl">—</span></div>
+      <div class="ftabs"><span>新标签页</span></div>
+    </div>
+    <div class="site" id="site"></div>
+  </div>
+</div>
+
+<div class="panel">
+  <h2>为什么需要主题包</h2>
+  <p class="lede">皮肤只还原了<b>版式</b>，但老板扫进眼里的是<b>文字</b>。导航写着「前端 / 后端 / 人工智能」、侧栏推荐「K8s 排查」、广告写「云服务器首年 89」，而正文是《内科学》——版式对了、语境错了，比版式错更容易被识破。主题包就是那套"行业语料"：站点原型、版块结构、术语口径、推荐池、广告池、评论语气，以及最关键的<b>禁忌词</b>。</p>
+  <table class="t" id="tbl"></table>
+
+  <h2>三种版式对应什么行业</h2>
+  <table class="t">
+    <tr><th style="width:120px">版式</th><th style="width:170px">用在哪</th><th>结构特征与可信点</th></tr>
+    <tr><td class="lay">blog</td><td>密码 / 信息安全 / 计算机</td><td>面包屑 + 作者行 + 目录 + 右侧推荐 + 底部评论。长文天然合理，代码块有位置放。</td></tr>
+    <tr><td class="lay">forum</td><td>教育 / 医疗</td><td>帖子标题 + 楼主卡 + 楼层回复（#1 #2 引用块）+ 快速回复框。<b>楼层号、"本帖最后由…编辑"是论坛独有指纹</b>，也顺带解释了你为什么停在这一页这么久——你在追一个讨论。</td></tr>
+    <tr><td class="lay">acad</td><td>生物 / 数学 / 物理</td><td>摘要卡 + 关键词 + 参考文献 + 讨论区 + 期刊页脚。素净、衬线标题，与人文学术站观感一致。</td></tr>
+  </table>
+
+  <h2>可信度分级</h2>
+  <table class="t">
+    <tr><th style="width:90px">级别</th><th style="width:230px">做法</th><th style="width:250px">适用</th><th>成本</th></tr>
+    <tr><td><b>L1 直出</b></td><td>书原文 + 同行业壳，一个字不改</td><td>书本身就属于该行业（读《国密算法原理》用密码包）</td><td>0</td></tr>
+    <tr><td><b>L2 轻包装</b></td><td>加行业小标题、术语高亮、摘要卡</td><td>跨行业但可迁移（读《思考，快与慢》用教育包）</td><td>规则引擎</td></tr>
+    <tr><td><b>L3 改写口吻</b></td><td>把章节改写成"帖子体"，补提问与回复</td><td>内容与行业差距大（读小说用医疗包）</td><td>需本地 LLM</td></tr>
+  </table>
+
+  <h2>三类反例</h2>
+  <div class="note">
+    <b>医疗书 + CSDN 壳</b>（导航全是前端后端）、<b>小说 + Stack Overflow 壳</b>（英文问答里夹中文叙事）、<b>数学书 + 掘金壳</b>（满屏无序列表装不下定理与证明）——这三种组合的违和感在 1 秒内就能被察觉，比任何细节瑕疵都致命。选主题包的第一原则不是"哪个好看"，而是<b>这本书本来会出现在哪个社区</b>。
+  </div>
+</div>
+
+<script>
+/* ==================================================================
+   主题包数据。每个包 = 一套行业语料，皮肤层只渲染，不做任何判断。
+   banned：该语境下不该出现的词，渲染前校验，命中即重抽。
+   ================================================================== */
+const PACKS = [
+
+/* ---------- 1 教育 ---------- */
+{
+  id:'edu', name:'教育', site:'教师研修社区', tag:'教研', host:'www.jiaoyan-union.cn', layout:'forum',
+  accent:'#d97706', note:'本版置顶：2027 届高三一轮复习资料征集中，欢迎各校备课组投稿（截至 11 月 20 日）。',
+  nav:['首页','教研','备课','试题','班主任','家校','资源库'],
+  navOn:1, group:'高中语文 · 必修下册', crumb:['论坛','高中语文','课堂教学'],
+  title:'《谏太宗十思疏》讲完，学生问我"太宗到底听了几条"，我当场卡住了',
+  meta:{author:'云间语文', role:'一级教师 · 江苏南京', time:'2026-10-29 20:41', read:4732, reply:37, like:126},
+  tags:['文本细读','史料实证','必修下册','课堂生成'],
+  body:[
+    {t:'p',x:'今天上第二课时，讲到"怨不在大，可畏惟人；载舟覆舟，所宜深慎"。一个平时不太说话的学生举手：老师，魏征写了十条，太宗到底听了几条？我说史书上写他把奏疏抄在屏风上。他又问：抄下来不等于听了吧。教室安静了两秒。'},
+    {t:'p',x:'我当时按"疏的论证逻辑"往下讲了，但下课越想越觉得，这个追问才是这节课真正的入口。回来翻了《贞观政要》和两《唐书》，材料其实很充分：贞观十一年之后，太宗营缮洛阳宫；贞观十九年亲征高丽；魏征死后一年，太宗还推倒了自己写的碑。'},
+    {t:'h2',x:'我打算这样改'},
+    {t:'list',x:['三则材料同时下发（《贞观政要》卷十节选、魏征卒年、征高丽时间线），先不给结论；','把"十思"还原成一张论证结构图，让学生自己标出哪几条能被史料验证、哪几条只是主张；','最后回到一个问题："疏"是写给太宗的，还是写给后来的读者看的。']},
+    {t:'table',x:{h:['层级','作业内容','提交方式'],r:[
+      ['基础','抄写并翻译"十思"中任意五条，标注词类活用','课堂本，次日交'],
+      ['提升','任选一则史料，写 200 字说明它对应"十思"的哪一条','学习平台，周日 22:00 前'],
+      ['拓展','以魏征口吻，补写第十一条"思"','小组互评，下节课展示']]}},
+    {t:'quote',x:'<b>教研员批注（区教研室 王××）：</b>文本细读和史料实证接起来，方向是对的。但注意别把语文课上成历史课，落脚点仍要回到语言本身——"可畏惟人"的"人"是避讳还是实指，这个点可以再挖一层。'},
+    {t:'note',x:'<b>补充：</b>本课课件与三则材料已上传资源库（附件 2 个，下载需 5 点积分），需要的老师站内信我。'}
+  ],
+  side:[
+    {h:'本版热帖',rank:true,items:[
+      ['高三一轮复习：文言文断句的 6 个高频陷阱','2.1k'],
+      ['作文批改到底要不要逐字改？我们备课组吵了一晚上','1.8k'],
+      ['新教材"整本书阅读"课时不够，大家都是怎么排的','1.4k'],
+      ['一个班 52 人，分层作业真的落地了吗','986'],
+      ['公开课被评"表演痕迹重"，有点受打击','754']]},
+    {h:'正在讨论',items:[
+      ['班主任要不要插手学生手机管理','47 回复'],
+      ['单元整体教学设计模板（.docx）','已下载 312 次'],
+      ['期中联考命题，求同进度学校','12 回复']]},
+    {h:'热门标签',tags:['学习任务群','大单元','作业设计','整本书阅读','高考作文','文言实词']}
+  ],
+  ads:[
+    {t:'2027 届高三一轮复习 · 语文专题精讲',d:'42 讲视频 + 12 套原创卷，教研组集体采购 8 折',cta:'查看详情'},
+    {t:'职称论文发表指导',d:'知网收录 · 见刊周期 3–6 个月 · 不过退费',cta:'免费咨询'}
+  ],
+  comments:[
+    {u:'青浦老张',role:'高级教师 · 教龄 21 年',t:'2026-10-29 21:14',x:'这个追问太好了。我上这课时直接给学生看了《贞观政要》里"渐不克终"那十条，让他们对照魏征的"十思"，一节课没讲完，但学生自己把矛盾找出来了。',lk:48},
+    {u:'林间有课',role:'二级教师',t:'2026-10-29 22:03',x:'请问三则材料的出处能具体到卷次吗？想直接用，怕被教研员问住。',lk:12,quote:'回复 @云间语文：已发你站内信，附了页码。'},
+    {u:'王××',role:'区教研室 · 语文教研员',t:'2026-10-30 08:12',x:'已加精。提醒一句：材料不要给太满，留白才是这堂课的重点。"可畏惟人"的避讳问题可以单独做一个小专题。',lk:96,edit:'本帖最后由 王×× 于 2026-10-30 08:15 编辑'}
+  ],
+  terms:['文本细读','学习任务群','大单元','分层作业','学情分析'],
+  banned:['commit','部署','接口','QPS','并发'],
+  foot:'© 2009-2026 教师研修社区 · 京ICP备 1203xxxx 号-3 · 京公网安备 1101050203xxxx 号 · 本站内容仅代表作者观点'
+},
+
+/* ---------- 2 密码学 ---------- */
+{
+  id:'crypto', name:'密码学', site:'看雪论坛', tag:'密码学版', host:'bbs.kanxue.com', layout:'blog', dark:true,
+  accent:'#8a6a2f', note:'公告：本站技术内容仅用于学习交流，禁止用于任何未授权的系统测试。',
+  nav:['首页','技术文库','逆向工程','密码学','安全资讯','招聘'],
+  navOn:3, group:'密码学与协议安全', crumb:['论坛','密码学与协议安全','SM2 实现细节'],
+  title:'SM2 签名里那个 e 到底怎么算：从 Z_A 到跨实现验签失败的一个坑',
+  meta:{author:'涧石', role:'版主', time:'2026-10-30 09:12', read:3847, like:96, star:41},
+  tags:['国密','SM2','SM3','PKCS#11'],
+  body:[
+    {t:'p',x:'上周对接一只 UKey，签名在自己环境里能过，换成对方验签就一直 false。查了两天，问题不在算法，在 e 的算法。'},
+    {t:'p',x:'GB/T 32918.2 里 e 不是 SM3(M)，而是 e = SM3(Z_A ‖ M)，其中 Z_A = SM3(ENTL ‖ ID_A ‖ a ‖ b ‖ xG ‖ yG ‖ xA ‖ yA)。少算 Z_A，自己签自己验还能过，一跨实现就全崩。'},
+    {t:'code',lang:'c',x:'/* Z_A = SM3(ENTL || ID_A || a || b || xG || yG || xA || yA) */\nuint8_t z[32];\nsm3_ctx ctx;\nsm3_init(&ctx);\nsm3_update(&ctx, entl_be, 2);        /* ENTL = bitlen(ID_A) */\nsm3_update(&ctx, ID_A, id_len);\nsm3_update(&ctx, a, 32);\nsm3_update(&ctx, b, 32);\nsm3_update(&ctx, xG, 32);\nsm3_update(&ctx, yG, 32);\nsm3_update(&ctx, xA, 32);\nsm3_update(&ctx, yA, 32);\nsm3_final(&ctx, z);\n\n/* e = SM3(Z_A || M) */'},
+    {t:'p',x:'第二个坑是 ENTL。规范要的是 ID 的<b>比特长度</b>，不是字节长度。默认 ID "1234567812345678" 是 16 字节，ENTL 要写 0x0080，很多人写成 0x0010。这个错误在双方都写错时会互相抵消，所以自测永远发现不了。'},
+    {t:'h2',x:'上线前建议自查三点'},
+    {t:'list',x:['e 是否包含 Z_A，而不是直接对 M 做 SM3；','ENTL 的单位是 bit，不是 byte；','ID 是否与对方约定的默认值一致——跨机构常改成单位代码，必须落到接口文档里，别口头定。']},
+    {t:'note',x:'<b>PKCS#11 侧补充：</b>CKM_SM3 与 CKM_SM2 的机制组合，各家厂商支持差异很大。C_Login 之前先用 C_GetMechanismList 探一遍，别把 mechanism 硬编码进代码。'},
+    {t:'quote',x:'<b>3 楼 补充：</b>OpenSSL 3.x 的 SM2 provider 已经内部算过 Z_A，用 EVP_DigestSign 时不要再手动拼，会重复。这一点文档里写得很含糊，我当初也是踩过才知道。'}
+  ],
+  side:[
+    {h:'热门文章',rank:true,items:[
+      ['SM2 协同签名在移动端的三个性能坑','8.2k'],
+      ['从零写一个 SM4-GCM 的 AEAD 封装','6.7k'],
+      ['国密改造中那些"看起来能过"的兼容性问题','5.1k'],
+      ['TEE 里跑密码运算，真的更快吗','3.9k']]},
+    {h:'相关标签',tags:['国密','SM2','SM3','SM9','PKCS#11','侧信道','协同签名']},
+    {h:'悬赏问答',items:[['SM2 验签在 ARM 平台偶发失败，有遇到过吗','赏金 200']]}
+  ],
+  ads:[
+    {t:'国密算法合规改造一站式方案',d:'SM2/SM3/SM4/SM9 全栈支持，已通过商用密码产品认证',cta:'获取方案'},
+    {t:'招聘 · 密码应用安全性评估工程师',d:'上海 · 25–40K · 熟悉 GB/T 39786',cta:'投递简历'}
+  ],
+  comments:[
+    {u:'hanzj',role:'',t:'2026-10-30 10:41',x:'ENTL 这个坑我也踩过。当时两边都是自己写的，互相验签通过，联调第一天就炸了，排查了一整天。',lk:34},
+    {u:'saltfish',role:'',t:'2026-10-30 11:22',x:'请教一下，如果 ID 用的是单位代码，需要在哪里约定？规范里有推荐值吗？',lk:8},
+    {u:'涧石',role:'楼主',t:'2026-10-30 11:35',x:'规范给了默认值 1234567812345678，实际项目里一般由双方在接口文档里写明，属于商务 + 技术双重约定。',lk:21}
+  ],
+  terms:['Z_A','ENTL','SM2/SM3','PKCS#11','C_GetMechanismList','协同签名'],
+  banned:['心电图','主诉','同学','备课','课文'],
+  foot:'© 2000-2026 看雪论坛 · 沪ICP备 0503xxxx 号-1 · 沪公网安备 3101150200xxxx 号 · 技术讨论请遵守法律法规'
+},
+
+/* ---------- 3 信息安全 ---------- */
+{
+  id:'infosec', name:'信息安全', site:'先知社区', tag:'漏洞分析', host:'xz.aliyun.com', layout:'blog',
+  accent:'#dc2626', note:'公告：本站文章仅用于安全研究与防御，任何未授权测试均与本社区无关。',
+  nav:['首页','漏洞分析','攻防对抗','应急响应','代码审计','工具'],
+  navOn:1, group:'漏洞分析', crumb:['首页','漏洞分析','SSRF'],
+  title:'一次 SSRF 从 PDF 预览打到内网：某 OA 系统的完整利用链复盘',
+  meta:{author:'n0tch', role:'', time:'2026-10-30 13:26', read:9124, like:214, star:88},
+  tags:['SSRF','内网渗透','漏洞复盘','代码审计'],
+  body:[
+    {t:'p',x:'授权测试中遇到一个 PDF 在线预览功能，参数 fileUrl 直接接受外部地址，无白名单校验。这类 SSRF 单点本身不新鲜，有意思的是后面怎么从"能发请求"走到"能证明危害"。'},
+    {t:'p',x:'目标内网是扁平结构、出网受限。先用 DNSLog 确认解析可达，再低速率扫描常见端口，发现一台未授权的 Redis（6379）和一台内部回调服务（9000）。'},
+    {t:'code',lang:'http',x:'POST /api/v3/pdf/preview HTTP/1.1\nHost: oa.example.local\nContent-Type: application/json\n\n{"fileUrl":"http://10.0.*.*:6379/","callback":"http://10.0.*.*:9000/r"}'},
+    {t:'h2',x:'利用链四步'},
+    {t:'list',x:['用 DNSLog 确认盲打可达（不依赖回显）；','内网端口探测，只探 6379 / 9000 / 3306，控制请求量，避免触发 IDS；','借 Redis 的 CONFIG SET 写入计划任务——该实例未设密码且以 root 运行；','用内部回调服务做二次确认，不落地任何文件。']},
+    {t:'quote',x:'<b>复盘：</b>真正该被记下来的不是 payload，而是"这个功能在设计时就没考虑过 URL 会是攻击者可控的"。修复建议给了三条——协议白名单（只允许 http/https + 固定域名）、出口代理、预览服务与业务网段隔离。'},
+    {t:'note',x:'<b>说明：</b>已按流程报送厂商并取得授权，本文隐去单位信息与具体地址，文中 IP 均为占位符。请勿对未授权目标尝试。'}
+  ],
+  side:[
+    {h:'本周热门',rank:true,items:[
+      ['某国产 OA 前台 RCE 分析（附补丁 diff）','12.4k'],
+      ['从一封钓鱼邮件到域控：完整时间线','9.8k'],
+      ['代码审计笔记：Java 反序列化的 12 个入口','8.6k'],
+      ['蓝队视角：一小时内定位横向移动','7.1k']]},
+    {h:'漏洞预警',items:[
+      ['某中间件 JNDI 注入（高危 · 已修复）','10-28'],
+      ['文件上传绕过 · 影响面较大','10-26']]},
+    {h:'热门标签',tags:['SSRF','内网渗透','代码审计','应急响应','ATT&CK','免杀']}
+  ],
+  ads:[
+    {t:'攻防演练 · 蓝队值守服务',d:'7×24 监测 + 应急响应，覆盖演练全周期',cta:'了解详情'},
+    {t:'CISP-PTE 渗透测试工程师认证',d:'周末班 · 含靶场实操 · 本月开班',cta:'领取大纲'}
+  ],
+  comments:[
+    {u:'Aurora',role:'',t:'2026-10-30 14:02',x:'Redis 未授权 + root，这个组合在内网还是太多见了。我们上次演练也是这么进去的，路径几乎一样。',lk:57},
+    {u:'kkk',role:'',t:'2026-10-30 15:18',x:'建议补一句：探测阶段一定要控制频率，上次有同事扫太快，直接把目标 IDS 打响了，后面全被盯。',lk:23},
+    {u:'n0tch',role:'楼主',t:'2026-10-30 15:40',x:'对，文中写了只探三个端口。授权范围外的资产一律不碰，这条是底线。',lk:31}
+  ],
+  terms:['利用链','打点','权限维持','SSRF','ATT&CK','蓝队值守'],
+  banned:['心电图','课文','备课','实验组','定理'],
+  foot:'© 2015-2026 先知社区 · 浙ICP备 1502xxxx 号-5 · 文章仅代表作者观点，转载请注明出处'
+},
+
+/* ---------- 4 计算机科学 ---------- */
+{
+  id:'cs', name:'计算机科学', site:'掘金', tag:'后端', host:'juejin.cn', layout:'blog',
+  accent:'#1e80ff', note:'社区公告：第五届稀土开发者大会征稿中，入选作者可获得创作激励。',
+  nav:['首页','后端','前端','架构','人工智能','云原生'],
+  navOn:1, group:'后端 · 分布式', crumb:['首页','后端','分布式系统'],
+  title:'Raft 的 ReadIndex 到底解决了什么：一次跨机房读延迟从 8ms 抖到 60ms 的排查',
+  meta:{author:'半山', role:'', time:'2026-10-30 16:02', read:12483, like:328, star:176},
+  tags:['Raft','分布式一致性','etcd','性能优化'],
+  body:[
+    {t:'p',x:'跨机房读延迟从 8ms 抖到 60ms，监控上只看到 P99 飙升，QPS 没变、写入没变、CPU 没变。最后定位到一次 ReadIndex 的等待。'},
+    {t:'p',x:'我们的读走 Follower，靠 ReadIndex 保证线性一致：Leader 确认自己仍是 Leader（一次心跳往返），取当前 commitIndex 作为 readIndex，然后本地等 apply 水位追上这个值。问题出在第三步。'},
+    {t:'code',lang:'go',x:'// etcd 里一次线性一致读的路径（简化）\nif !r.isLeader {\n    return r.forwardToLeader()\n}\nif err := r.stepReadIndex(ctx); err != nil {   // 一次心跳往返\n    return err\n}\n\nidx := r.readIndex\nr.waitApplied(idx)      // 关键：读也要等 apply 水位追上\nreturn r.store.Get(key)'},
+    {t:'p',x:'waitApplied 用的是 channel 通知，但 apply 协程在批量提交时是按批广播的——一批 512 条只发一次信号。等待方被唤醒后重新比较水位，发现还差 3 条，于是再等下一批。跨机房一次往返 30ms，抖动就是这么来的。'},
+    {t:'h2',x:'三种解法与取舍'},
+    {t:'table',x:{h:['方案','改动量','代价'],r:[
+      ['按索引精确唤醒（每个等待方挂最小堆）','中','唤醒 O(log n)，CPU +2%'],
+      ['缩短 apply 批大小','小','写吞吐下降约 15%，不划算'],
+      ['Follower 读到"已 apply 的最大连续前缀"','小','严格说不再是线性一致读']]}},
+    {t:'note',x:'<b>最终选择：</b>按索引精确唤醒 + 允许读到已 apply 的最大连续前缀（业务可接受）。P99 从 60ms 回到 11ms，代码在 PR #2841，压测数据附在 issue 里。'}
+  ],
+  side:[
+    {h:'作者榜',rank:true,items:[
+      ['一次 etcd 选主风暴的完整复盘','9.2k'],
+      ['分布式事务：从 2PC 到 Saga 的取舍','7.8k'],
+      ['我用 Go 写了个可观测的限流器','6.4k'],
+      ['为什么你的 P99 永远降不下来','5.9k']]},
+    {h:'相关推荐',items:[
+      ['Raft 论文逐段精读（一）','3.1k'],
+      ['etcd 的 WAL 与快照机制','2.7k']]},
+    {h:'热门标签',tags:['Raft','一致性','etcd','Go','可观测性','性能优化']}
+  ],
+  ads:[
+    {t:'云原生实战训练营',d:'12 周 · 从 K8s 到 Service Mesh · 含大厂面试题库',cta:'免费试听'},
+    {t:'2 核 4G 云服务器 首年 89 元',d:'新用户专享 · 上海/香港节点可选',cta:'立即抢购'}
+  ],
+  comments:[
+    {u:'kite',role:'',t:'2026-10-30 16:20',x:'按批广播这个设计我见过，本质是把"通知"当成了条件变量，但通知是有损的，唤醒不等于条件成立。',lk:44},
+    {u:'林一',role:'',t:'2026-10-30 17:05',x:'请问按索引精确唤醒之后，apply 协程的锁竞争有变化吗？',lk:11},
+    {u:'半山',role:'作者',t:'2026-10-30 17:31',x:'有变化，我们改成每个等待方挂一个最小堆，唤醒是 O(log n)。压测下 CPU 多用了 2%，可以接受。',lk:28}
+  ],
+  terms:['一致性','ReadIndex','水位','副本','P99','QPS'],
+  banned:['心电图','主诉','课文','备课','抗体'],
+  foot:'© 2026 掘金 · 沪ICP备 1601xxxx 号-1 · 沪公网安备 3101150201xxxx 号'
+},
+
+/* ---------- 5 医疗 ---------- */
+{
+  id:'med', name:'医疗', site:'丁香园论坛', tag:'心血管版', host:'www.dxy.cn', layout:'forum',
+  accent:'#0891b2', note:'版规：本版仅作同行学术讨论，请勿提供具体用药剂量建议；发帖请隐去可识别患者身份的信息。',
+  nav:['首页','论坛','病例','指南','用药','考试','招聘'],
+  navOn:1, group:'心血管 · 病例讨论', crumb:['论坛','心血管','病例讨论'],
+  title:'42 岁男性，反复晕厥 3 次，这份心电图大家怎么看（附完整检查）',
+  meta:{author:'心内小周', role:'主治医师 · 浙江', time:'2026-10-30 19:48', read:6218, reply:52, like:167},
+  tags:['晕厥','心电图','鉴别诊断','QT间期'],
+  body:[
+    {t:'p',x:'男，42 岁，反复晕厥 3 次，均为站立位、持续数十秒自行恢复，无抽搐、无二便失禁、无发作后意识模糊。门诊心电图如下，各位看看这个波形怎么解释。'},
+    {t:'table',x:{h:['项目','内容'],r:[
+      ['主诉','反复晕厥 3 次，近 2 个月'],
+      ['现病史','均为站立位发作，前驱症状为眼前发黑、出冷汗，无胸痛心悸'],
+      ['既往史','高血压 3 年，服氨氯地平；否认糖尿病、晕厥家族史'],
+      ['查体','BP 128/78 mmHg，HR 62 次/分，心界不大，未闻及杂音'],
+      ['辅助检查','心电图 QTc 462 ms；血常规、电解质、心肌酶未见异常']]}},
+    {t:'p',x:'我的第一反应是血管迷走性晕厥，但第三次发作前没有明显诱因，且家属提到发作时"脸色特别白、出冷汗"。这两点和典型的神经介导性晕厥不太完全吻合。'},
+    {t:'h2',x:'想请教两个问题'},
+    {t:'list',x:['这份心电图的 QT 间期是否已在临界值，需不需要做进一步激发评估；','直立倾斜试验的时机——是现在做，还是等 24 小时动态心电图结果出来再说。']},
+    {t:'quote',x:'<b>3 楼（副主任医师）：</b>先排除结构性心脏病，超声心动图和心肌酶先补齐，别在功能诊断上花太多时间。<br><b>5 楼（版主）：</b>建议补充家族史，尤其是一级亲属 40 岁前猝死、不明原因溺亡的情况。'},
+    {t:'note',x:'<b>声明：</b>本帖仅作同行学术讨论，不作为任何个体的诊疗依据。涉及具体患者请遵循所在机构诊疗规范与指南。'}
+  ],
+  side:[
+    {h:'本版热帖',rank:true,items:[
+      ['35 岁女性，反复胸痛半年，冠脉造影正常','4.8k'],
+      ['这份血气分析，pH 和 PaCO2 方向相反怎么解释','4.1k'],
+      ['2026 ESC 抗栓治疗更新要点（附原文）','3.7k'],
+      ['值班遇到"心电图正常但肌钙蛋白升高"','3.2k']]},
+    {h:'指南更新',items:[
+      ['2026 ESC 晕厥诊治指南（中文译版）','10-24'],
+      ['中国成人血脂异常防治指南 2026','10-18']]},
+    {h:'热门标签',tags:['晕厥','心电图','QT间期','超声心动图','循证医学']}
+  ],
+  ads:[
+    {t:'第十九届心血管介入大会',d:'11 月 21–23 日 · 杭州 · 早鸟注册进行中',cta:'注册参会'},
+    {t:'医学统计与 SCI 论文润色',d:'SPSS/R 代分析 · 图表重绘 · 母语润色',cta:'获取报价'}
+  ],
+  comments:[
+    {u:'心内小刘',role:'住院医师',t:'2026-10-30 20:11',x:'建议先补家族史和用药史，尤其是有没有用延长 QT 的药物。我们科上个月就有一例是喹诺酮引起的。',lk:19},
+    {u:'老陈看心电图',role:'副主任医师 · 心内科',t:'2026-10-30 21:40',x:'QTc 目测在 460 左右，男性算临界。先做 24 小时动态，别急着上倾斜试验，阳性率不高还容易假阳性。',lk:62},
+    {u:'阿岳',role:'版主',t:'2026-10-31 09:02',x:'提醒：本帖讨论请勿给出具体用药剂量建议，涉及个体化治疗请回到线下。已加精，期待楼主更新随访结果。',lk:88,edit:'本帖最后由 阿岳 于 2026-10-31 09:05 编辑'}
+  ],
+  terms:['主诉','现病史','辅助检查','鉴别诊断','循证等级'],
+  banned:['commit','部署','接口','QPS','编译'],
+  foot:'© 2000-2026 丁香园 · 浙ICP备 1200xxxx 号-8 · 互联网药品信息服务资格证书 (浙)-经营性-2019-00xx · 本站不提供诊疗服务'
+},
+
+/* ---------- 6 生物 ---------- */
+{
+  id:'bio', name:'生物', site:'小木虫', tag:'分子生物', host:'muchong.com', layout:'acad',
+  accent:'#15803d', note:'公告：文献求助请注明 DOI；禁止发布涉密与未公开数据。',
+  nav:['首页','文献求助','分子生物','细胞生物','测序','论文投稿','仪器'],
+  navOn:2, group:'分子生物 · 单细胞', crumb:['论坛','分子生物','数据分析'],
+  title:'单细胞数据批次效应校正：Harmony 和 Seurat CCA 到底怎么选',
+  meta:{author:'cell_bio', role:'', time:'2026-10-30 18:52', read:5491, like:143},
+  abs:{bg:'两个批次、四个样本的单细胞数据，PCA 上批次分得很开，审稿人明确要求补批次效应校正。', me:'对比 Harmony 与 Seurat CCA 两种策略在同一数据集上的表现与适用边界。', rs:'两者在细胞类型重叠度高时差异不大；组成差异极大时 Harmony 存在过度校正风险。'},
+  tags:['单细胞','批次效应','Seurat','Harmony'],
+  body:[
+    {t:'p',x:'手上两个批次、四个样本的单细胞数据，PCA 上批次分得很开。审稿人明确要求补批次效应校正，现在纠结 Harmony 还是 Seurat 的 CCA。'},
+    {t:'h2',x:'我的理解（可能不准，求指正）'},
+    {t:'p',x:'CCA 是找跨数据集的共享相关结构，再在对齐后的空间里做整合。对"部分重叠的细胞类型"效果好，但样本多、细胞多时非常吃内存，我们 8G 的工作站跑到一半就被 OOM kill 了。'},
+    {t:'p',x:'Harmony 是在 PCA 空间里做迭代软聚类、再逐簇校正。快，对细胞类型比例差异不敏感，但对"批次特异的真实生物学差异"可能过度校正——把本来该留着的差异也抹平了。'},
+    {t:'code',lang:'r',x:'sce <- NormalizeData(sce) |>\n  FindVariableFeatures(n = 3000) |>\n  ScaleData()\n\nsce <- RunPCA(sce, npcs = 30)\n\n# 两种校正各跑一次，固定同一个 seed 保证可比\nsce.h <- RunHarmony(sce, group.by.vars = "batch",\n                    reduction = "pca", dims = 1:30)\n\nsce.c <- IntegrateLayers(sce, method = CCAIntegration,\n                         orig.reduction = "pca")'},
+    {t:'table',x:{h:['维度','Harmony','Seurat CCA'],r:[
+      ['速度（10 万细胞）','约 3 分钟','约 40 分钟'],
+      ['内存','低','高，容易 OOM'],
+      ['细胞类型重叠度高','效果好','效果好'],
+      ['组成差异极大','有过度校正风险','更保守'],
+      ['下游差异表达','需回到原始矩阵','需回到原始矩阵']]}},
+    {t:'quote',x:'<b>4 楼：</b>如果下游要做差异表达，校正后一定要在<b>未校正的表达矩阵</b>上做检验，用校正后的坐标只做聚类和可视化。这一点很多人搞反了，审稿人也常抓这个。'}
+  ],
+  side:[
+    {h:'文献求助',rank:true,items:[
+      ['求 Nature 2026 那篇 spatial multi-omics 的 SI','已应助'],
+      ['求一篇 2019 年 Cell 的补充材料','待应助'],
+      ['求 GB 标准全文（生物安全相关）','待应助']]},
+    {h:'本周热帖',items:[
+      ['抗体特异性的验证，大家都做到什么程度','2.4k'],
+      ['审稿人要求补动物实验，经费不够怎么办','2.1k'],
+      ['单细胞测序现在多少钱一个样本','1.9k']]},
+    {h:'热门标签',tags:['单细胞','批次效应','Seurat','Harmony','差异表达']}
+  ],
+  ads:[
+    {t:'科研绘图 3 天出图',d:'机制图 / 示意图 / 封面图 · 按期刊要求定制',cta:'查看样例'},
+    {t:'抗体试剂 满 3000 减 500',d:'WB / IHC / 流式 全线参与 · 本月截止',cta:'进入活动'}
+  ],
+  comments:[
+    {u:'老博后',role:'',t:'2026-10-30 20:45',x:'我们组做过对比，细胞类型重叠度高的时候两者差别不大；但如果是"肿瘤 vs 正常"这种组成差异极大的，Harmony 会过度校正，要很小心。',lk:41},
+    {u:'paperdog',role:'',t:'2026-10-30 21:30',x:'补充一个更实际的问题：审稿人往往只认 Seurat，因为引用高。有时候不是技术选择，是沟通成本。',lk:66},
+    {u:'cell_bio',role:'楼主',t:'2026-10-31 08:10',x:'谢谢，那我两个都跑，把 UMAP 和校正前后 marker 的一致性都放进补充材料。',lk:15}
+  ],
+  terms:['批次效应','差异表达','单细胞','FDR','审稿意见'],
+  banned:['心电图','主诉','课文','commit','Raft'],
+  foot:'© 2003-2026 小木虫 · 京ICP备 0903xxxx 号-2 · 学术交流平台，禁止发布涉密内容'
+},
+
+/* ---------- 7 数学 ---------- */
+{
+  id:'math', name:'数学', site:'数学中国', tag:'分析与方程', host:'www.mathchina.com', layout:'acad',
+  accent:'#4f46e5', note:'版规：提问请给出完整条件与自己的尝试；只写"求解答"的帖子会被移入水区。',
+  nav:['首页','分析','代数','几何','概率统计','计算数学','考研'],
+  navOn:1, group:'泛函分析 · 算子理论', crumb:['论坛','分析','泛函分析'],
+  title:'这道关于紧算子谱的题，答案给的这一步我没看懂',
+  meta:{author:'abel', role:'', time:'2026-10-30 21:36', read:3182, like:76},
+  abs:{bg:'题目：设 T 是 Hilbert 空间 H 上的紧自伴算子，证明 T 的非零谱点都是特征值，且 0 是唯一可能的聚点。', me:'卡在标准答案"由 T−λI 不可逆且 T 紧，得 λ 是特征值"这一步，怀疑是循环论证。', rs:'该步属跳步而非循环：核心是 T−λI 的下有界性与值域闭性。'},
+  tags:['紧算子','谱理论','泛函分析','证明'],
+  body:[
+    {t:'p',x:'题目：设 T 是 Hilbert 空间 H 上的紧自伴算子，证明 T 的非零谱点都是特征值，且零是 T 的唯一可能的聚点。答案里这一步我没跟上。'},
+    {t:'fml',x:'σ(<i>T</i>) \\ {0} ⊆ σ<sub>p</sub>(<i>T</i>)，且 0 ∈ σ(<i>T</i>)（当 dim <i>H</i> = ∞）'},
+    {t:'p',x:'答案写"取 λ ∈ σ(T)，λ ≠ 0。由 T − λI 不可逆且 T 紧，得 λ 是特征值"。我知道紧算子的谱由 0 和特征值组成，但这个结论本身就是待证的，用它来证它，读起来像是循环论证。'},
+    {t:'h2',x:'我能想到的路'},
+    {t:'list',x:['先证 λ ≠ 0 时 T − λI 是下有界的，即存在 c > 0 使 ‖(T − λI)x‖ ≥ c‖x‖；','用 Riesz 引理在单位球上构造近似正交点列；','由 T 的紧性取出收敛子列，得到非零的核向量。']},
+    {t:'quote',x:'<b>6 楼：</b>你缺的是第一步。λ ∉ σ<sub>p</sub>(T) 时 T − λI 单射，配合紧性可以证它下有界，进而值域闭；再用正交分解说明值域不可能是全空间。这两条合起来，才是"λ ∈ σ(T) ⟹ λ ∈ σ<sub>p</sub>(T)"的完整链条。'},
+    {t:'note',x:'<b>教材推荐：</b>Conway《A Course in Functional Analysis》第 II 章；或张恭庆《泛函分析讲义》上册 §3.4，讲得比中文教材里大多数版本清楚。'}
+  ],
+  side:[
+    {h:'悬赏题',rank:true,items:[
+      ['求证：有界线性算子空间在强算子拓扑下不完备','赏金 300'],
+      ['一个关于测度绝对连续性的反例','赏金 150'],
+      ['求一个不可分 Banach 空间的例子','赏金 100']]},
+    {h:'教材讨论',items:[
+      ['实变函数，Rudin 和 Folland 选哪个','1.8k'],
+      ['计算数学方向，有限元入门书求推荐','1.2k']]},
+    {h:'热门标签',tags:['紧算子','谱理论','泛函分析','Hilbert空间']}
+  ],
+  ads:[
+    {t:'考研数学 冲刺 30 天',d:'真题精讲 + 每日一题 · 名师直播',cta:'免费领课'},
+    {t:'LaTeX 论文排版 & 公式校对',d:'学位论文 / 期刊模板 · 48 小时交付',cta:'咨询价格'}
+  ],
+  comments:[
+    {u:'泛函小站',role:'',t:'2026-10-30 22:14',x:'不是循环。紧算子的谱结构是定理，"λ ∈ σ(T) 且 λ≠0 ⟹ λ 是特征值"是它的推论；答案想说的是后者，但写法确实跳步了。',lk:73},
+    {u:'柯西',role:'',t:'2026-10-30 23:01',x:'补一个标准做法：先证 T−λI 下有界，再用 Riesz 引理取近似正交列，紧性给出收敛子列，最后证核非零。',lk:38},
+    {u:'abel',role:'楼主',t:'2026-10-31 07:55',x:'明白了，是"跳步"不是"循环"。谢谢 6 楼和 7 楼，我去把下有界那一步自己补完。',lk:9}
+  ],
+  terms:['紧算子','谱','一致有界','反例','构造性证明'],
+  banned:['心电图','主诉','课文','commit','抗体'],
+  foot:'© 2006-2026 数学中国 · 京ICP备 1002xxxx 号-4 · 学术讨论请注明出处'
+},
+
+/* ---------- 8 物理 ---------- */
+{
+  id:'phys', name:'物理', site:'物理所论坛', tag:'凝聚态', host:'bbs.iphy.ac.cn', layout:'acad',
+  accent:'#7c3aed', note:'内部交流：涉及未发表数据请勿转出；仪器机时申请请走 OA 流程。',
+  nav:['首页','凝聚态','量子信息','光学','低温','组会','仪器共享'],
+  navOn:1, group:'凝聚态 · 量子信息', crumb:['论坛','量子信息','超导量子比特'],
+  title:'超导量子比特 T2* 只有 20 μs，是衬底损耗还是封装引入的低频噪声',
+  meta:{author:'dilution', role:'', time:'2026-10-30 20:37', read:2864, like:64},
+  abs:{bg:'同一批片子、同一台稀释制冷机，T1 在 60–80 μs，T2* 却只有约 20 μs，Ramsey 衰减明显偏快。', me:'用 CPMG 区分白噪声与 1/f 型低频噪声，并给出下一步对照实验设计。', rs:'回波数增至 32 后 T2 回到约 45 μs，指向低频 1/f 退相干，优先怀疑衬底表面 TLS。'},
+  tags:['超导量子比特','退相干','1/f噪声','稀释制冷'],
+  body:[
+    {t:'p',x:'稀释制冷机里测 transmon，同一批片子，T1 都在 60–80 μs，但 T2* 只有 20 μs 左右，Ramsey 衰减得很快。怀疑是低频噪声，但不确定来源是衬底还是封装。'},
+    {t:'table',x:{h:['项目','条件'],r:[
+      ['温度','基温 12 mK（混合室）'],
+      ['样品','transmon，Al/AlOx/Al，4 个器件'],
+      ['测量','Ramsey / 自旋回波 / CPMG'],
+      ['重复','每器件 3 次，取中位数'],
+      ['屏蔽','一层磁屏蔽筒，未做超导屏蔽']]}},
+    {t:'fml',x:'1 / <i>T</i><sub>2</sub><sup>*</sup> = 1 / (2<i>T</i><sub>1</sub>) + 1 / <i>T</i><sub>φ</sub>'},
+    {t:'p',x:'按这个式子拆，T1 = 70 μs 只贡献很小一部分，剩下全在 Tφ 上。做了 CPMG，回波数加到 32 之后 T2 能回到 45 μs 左右，说明主要是低频（1/f 型）退相干，而不是白噪声。'},
+    {t:'h2',x:'两个怀疑方向'},
+    {t:'list',x:['衬底表面 TLS：换一片表面处理不同的片子做对照，其余工艺不变；','封装引入的磁通噪声：加磁屏蔽 + 换超导屏蔽筒，比较 Tφ 的变化。']},
+    {t:'quote',x:'<b>2 楼：</b>先做个温度依赖。如果 Tφ 随温度下降很快变平，基本可以定到 TLS 上。另外注意 flux line noise 在 10 mK 以下本来就是 1/f 的主要来源之一，别一上来就怪衬底。'}
+  ],
+  side:[
+    {h:'组会分享',rank:true,items:[
+      ['组会：超导量子比特读出保真度的极限在哪','1.6k'],
+      ['稀释制冷机 10 mK 层温度上不去，求排查思路','1.3k'],
+      ['磁屏蔽筒选型，大家都用哪家','980'],
+      ['低温同轴线衰减器配置经验','760']]},
+    {h:'仪器共享',items:[
+      ['稀释制冷机机位 · 11 月空余 2 个','申请'],
+      ['矢量网络分析仪（40 GHz）','预约']]},
+    {h:'热门标签',tags:['退相干','T2*','1/f噪声','TLS','稀释制冷']}
+  ],
+  ads:[
+    {t:'低温恒温器 / 稀释制冷机 租赁',d:'按周计费 · 含安装调试 · 全国可发',cta:'询价'},
+    {t:'2026 量子信息青年学者论坛',d:'12 月 6 日 · 合肥 · 征稿截止 11 月 15 日',cta:'提交摘要'}
+  ],
+  comments:[
+    {u:'qubit_noob',role:'',t:'2026-10-30 21:03',x:'T2* 20 μs 在 10 mK 下确实偏短。先做温度依赖，如果 Tφ 在 50 mK 以下不再改善，基本锁定 TLS。',lk:38},
+    {u:'低温组',role:'',t:'2026-10-30 22:20',x:'请教 CPMG 的脉冲间隔是怎么取的？我们组一直用固定值，感觉不太对。',lk:7},
+    {u:'dilution',role:'楼主',t:'2026-10-30 22:48',x:'我们扫了 1–50 μs 的间隔，取衰减曲线拐点附近。间隔太长会被 T1 限制，太短又滤不掉高频噪声。',lk:24}
+  ],
+  terms:['退相干','T2*','1/f 噪声','衬底损耗','稀释制冷'],
+  banned:['心电图','主诉','课文','commit','抗体'],
+  foot:'© 2011-2026 物理所论坛 · 京ICP备 0500xxxx 号-6 · 内部学术交流，请勿外传'
+}
+];
+
+/* ================= 渲染 ================= */
+const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+const hex2rgba = (h,a) => {
+  const n = parseInt(h.slice(1),16);
+  return `rgba(${n>>16&255},${n>>8&255},${n&255},${a})`;
+};
+const AV = ['张','李','王','陈','刘','周','吴','徐','孙','胡'];
+
+function blockHtml(b, p){
+  if(b.t==='p') return `<p>${b.x}</p>`;
+  if(b.t==='h2') return `<h2>${b.x}</h2>`;
+  if(b.t==='fml') return `<div class="fml">${b.x}</div>`;
+  if(b.t==='code') return `<div class="code"><div class="code-h"><span class="l">${b.lang||'text'}</span><span>复制</span><span class="cp">···</span></div><pre>${esc(b.x)}</pre></div>`;
+  if(b.t==='quote') return `<div class="q">${b.x}</div>`;
+  if(b.t==='note') return `<div class="nt">${b.x}</div>`;
+  if(b.t==='list') return `<ul>${b.x.map(i=>`<li>${i}</li>`).join('')}</ul>`;
+  if(b.t==='table') return `<table class="tbl"><tr>${b.x.h.map(h=>`<th>${h}</th>`).join('')}</tr>${b.x.r.map(r=>`<tr>${r.map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')}</table>`;
+  return '';
+}
+
+function headerHtml(p){
+  const nav = p.nav.map((n,i)=>`<a href="#" class="${i===p.navOn?'on':''}">${n}</a>`).join('');
+  return `<header class="hd${p.dark?' dk':''}">
+    <div class="hd-in">
+      <div class="lg"><span class="mk">${p.site[0]}</span><b>${p.site}</b><span class="tagx">${p.tag}</span></div>
+      <nav class="nav">${nav}</nav>
+      <div class="hd-r">
+        <div class="sbox"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="M16.5 16.5L21 21"/></svg>搜索</div>
+        <span class="write">写文章</span>
+        <span class="av">${p.meta.author[0]}</span>
+      </div>
+    </div>
+  </header>`;
+}
+
+function asideHtml(p){
+  return p.side.map(m=>{
+    let inner;
+    if(m.tags){
+      inner = `<div class="tagp">${m.tags.map(t=>`<a href="#">${t}</a>`).join('')}</div>`;
+    }else{
+      inner = m.items.map((it,i)=>{
+        const rank = m.rank ? `<span class="n${i<3?' t':''}">${i+1}</span>` : '';
+        return `<a class="item" href="#">${rank}<span class="tx">${it[0]}</span>${it[1]?`<span class="em">${it[1]}</span>`:''}</a>`;
+      }).join('');
+    }
+    return `<div class="mod"><div class="mod-h">${m.h}${m.tags?'<span>·</span>':''}</div><div class="mod-b">${inner}</div></div>`;
+  }).join('');
+}
+
+function adHtml(a, cls){
+  return `<div class="ad${cls?' '+cls:''}"><div class="adt">${a.t}</div><div class="add">${a.d}</div><div class="adc">${a.cta} ›</div></div>`;
+}
+
+function render(p){
+  const site = document.getElementById('site');
+  site.className = 'site' + (p.layout==='acad'?' acad':'');
+  site.style.setProperty('--a', p.accent);
+  site.style.setProperty('--as', hex2rgba(p.accent,.08));
+  site.style.setProperty('--ab', hex2rgba(p.accent,.20));
+
+  const crumb = p.crumb.map((c,i)=>`<span>${c}</span>${i<p.crumb.length-1?'<span class="sep">›</span>':''}`).join('');
+  const body = p.body.map(b=>blockHtml(b,p)).join('');
+  const tags = `<div class="tags">${p.tags.map(t=>`<a href="#"># ${t}</a>`).join('')}</div>`;
+
+  let main, cmtTitle, cmtCount;
+
+  if(p.layout==='forum'){
+    /* ---- 论坛：楼主 + 楼层 ---- */
+    const floors = p.comments.map((c,i)=>`
+      <div class="fl">
+        <div class="lf"><div class="av">${c.u[0]}</div><div class="no">#${i+1}</div></div>
+        <div class="rb">
+          <div class="rh"><b>${c.u}</b>${c.role?`<span class="ro">${c.role}</span>`:''}
+            <span>${c.t}</span><span class="rp">举报 · 回复</span></div>
+          ${c.quote?`<div class="rq">${c.quote}</div>`:''}
+          <div class="rx">${c.x}</div>
+          <div class="rf"><span>👍 ${c.lk||0}</span><span>引用回复</span><span>评分</span></div>
+          ${c.edit?`<div class="edit">${c.edit}</div>`:''}
+        </div>
+      </div>`).join('');
+
+    main = `
+      <div class="crumb">${crumb}</div>
+      <h1 class="pt">${p.title}</h1>
+      <div class="mt">
+        <span class="au"><span class="av">${p.meta.author[0]}</span>${p.meta.author}
+          <span class="ro">${p.meta.role}</span></span>
+        <span>${p.meta.time}</span>
+        <span class="sp"><span>阅读 ${p.meta.read.toLocaleString()}</span><span>回复 ${p.meta.reply}</span><span>点赞 ${p.meta.like}</span></span>
+      </div>
+      <div class="prose">${body}
+        <div class="ad-inline"><div class="ic"></div><div><div class="adt" style="font-size:13px;font-weight:600;margin-bottom:2px">${p.ads[1].t}</div><div class="add" style="font-size:12px;color:#98a2b3">${p.ads[1].d}</div></div><div class="adc" style="font-size:12px;color:var(--a);font-weight:500">${p.ads[1].cta} ›</div></div>
+      </div>
+      ${tags}
+      <div class="acts"><span class="b pri">收藏本帖</span><span class="b">分享</span><span class="b">举报</span></div>
+      <div class="reply-box"><div class="rbh"><b>快速回复</b><span>支持 Markdown</span><span style="margin-left:auto">发表</span></div><div class="rbb">说点什么…</div></div>
+      <div class="cm"><div class="cm-h">全部回复 <span>共 ${p.meta.reply} 条 · 按时间</span></div>${floors}</div>`;
+  } else if(p.layout==='acad'){
+    /* ---- 学术：摘要卡 + 参考文献 ---- */
+    const abs = `<div class="abs">
+      <div class="ah">摘要 Abstract</div>
+      <p><b>背景</b>　${p.abs.bg}</p>
+      <p><b>方法</b>　${p.abs.me}</p>
+      <p><b>结果</b>　${p.abs.rs}</p>
+      <p class="kw"><b>关键词</b>　${p.tags.join(' / ')}</p>
+    </div>`;
+    const cmts = p.comments.map(c=>`
+      <div class="cmt"><div class="av">${c.u[0]}</div>
+        <div class="cmt-b"><div class="cmt-h"><b>${c.u}</b>${c.role?`<span>${c.role}</span>`:''}<span>${c.t}</span><span class="lk">赞 ${c.lk||0}</span></div>
+        <p>${c.x}</p></div></div>`).join('');
+    main = `
+      <div class="crumb">${crumb}</div>
+      <h1 class="pt">${p.title}</h1>
+      <div class="mt">
+        <span class="au"><span class="av">${p.meta.author[0]}</span>${p.meta.author}</span>
+        <span>${p.meta.time}</span>
+        <span class="sp"><span>浏览 ${p.meta.read.toLocaleString()}</span><span>收藏 ${p.meta.like}</span></span>
+      </div>
+      ${abs}
+      <div class="prose">${body}</div>
+      ${tags}
+      <div class="refs"><div class="rh">参考文献</div>
+        [1] 相关方法学综述，见本版置顶索引。<br>
+        [2] 讨论中引用的原始文献请以 DOI 为准，本帖不重复列出。
+      </div>
+      <div class="cm"><div class="cm-h">讨论 <span>共 ${p.comments.length} 条回复</span></div>${cmts}</div>`;
+  } else {
+    /* ---- 博客 ---- */
+    const cmts = p.comments.map(c=>`
+      <div class="cmt"><div class="av">${c.u[0]}</div>
+        <div class="cmt-b"><div class="cmt-h"><b>${c.u}</b>${c.role?`<span>${c.role}</span>`:''}<span>${c.t}</span><span class="lk">赞 ${c.lk||0}</span></div>
+        <p>${c.x}</p>${c.role==='楼主'||c.role==='作者'?'<div class="rep">作者回复</div>':''}</div></div>`).join('');
+    main = `
+      <div class="crumb">${crumb}</div>
+      <h1 class="pt">${p.title}</h1>
+      <div class="mt">
+        <span class="au"><span class="av">${p.meta.author[0]}</span>${p.meta.author}
+          ${p.meta.role?`<span class="ro">${p.meta.role}</span>`:''}</span>
+        <span>${p.meta.time}</span>
+        <span class="sp"><span>阅读 ${p.meta.read.toLocaleString()}</span><span>点赞 ${p.meta.like}</span><span>收藏 ${p.meta.star||0}</span></span>
+      </div>
+      <div class="prose">${body}
+        <div class="ad-inline"><div class="ic"></div><div><div class="adt" style="font-size:13px;font-weight:600;margin-bottom:2px">${p.ads[1].t}</div><div class="add" style="font-size:12px;color:#98a2b3">${p.ads[1].d}</div></div><div class="adc" style="font-size:12px;color:var(--a);font-weight:500">${p.ads[1].cta} ›</div></div>
+      </div>
+      ${tags}
+      <div class="cpr"><b>本文由 ${p.meta.author} 原创发布于 ${p.site}，未经许可禁止转载。</b><br>
+        如有侵权请联系 ${p.host} 处理，转载请注明出处。</div>
+      <div class="acts"><span class="b pri">👍 点赞 ${p.meta.like}</span><span class="b">收藏</span><span class="b">分享</span></div>
+      <div class="cm"><div class="cm-h">评论 <span>${p.comments.length}</span></div>${cmts}</div>`;
+  }
+
+  site.innerHTML = `
+    ${headerHtml(p)}
+    <div class="ntc"><div class="ntc-in"><b>置顶</b><span>${p.note}</span><span class="x">×</span></div></div>
+    <div class="body-grid">
+      <div>${main}</div>
+      <aside class="aside">${adHtml(p.ads[0],'hl')}${asideHtml(p)}</aside>
+    </div>
+    <footer class="ft"><div class="ft-in">
+      <div class="links">关于我们 · 联系方式 · 用户协议 · 隐私政策 · 侵权投诉 · 友情链接</div>
+      ${p.foot}
+    </div></footer>`;
+
+  /* 顶部读出的元信息 */
+  document.getElementById('rLay').textContent = {forum:'论坛 forum', blog:'博客 blog', acad:'学术 acad'}[p.layout];
+  document.getElementById('rBan').textContent = p.banned.length + ' 词';
+  document.getElementById('fUrl').textContent = 'https://' + p.host + '/' + p.id + '/' + (p.layout==='forum'?'thread/47281':'post/9f3a2c');
+  document.title = p.title + ' - ' + p.site;
+}
+
+/* ================= 交互 ================= */
+function boot(id){
+  const p = PACKS.find(x=>x.id===id) || PACKS[0];
+  document.querySelectorAll('.chip').forEach(c=>c.classList.toggle('on', c.dataset.id===p.id));
+  document.querySelectorAll('.chip').forEach(c=>c.style.setProperty('--c', PACKS.find(x=>x.id===c.dataset.id).accent));
+  render(p);
+  history.replaceState(null,'','#'+p.id);
+}
+
+document.getElementById('chips').innerHTML = PACKS.map(p=>
+  `<button class="chip" data-id="${p.id}" style="--c:${p.accent}"><i></i>${p.name}</button>`).join('');
+document.getElementById('chips').addEventListener('click', e=>{
+  const b = e.target.closest('.chip'); if(b) boot(b.dataset.id);
+});
+window.addEventListener('hashchange', ()=>boot(location.hash.slice(1)));
+
+/* 主题包规格表 */
+document.getElementById('tbl').innerHTML = `
+  <tr><th style="width:96px">主题包</th><th style="width:112px">站点原型</th><th style="width:86px">版式</th><th style="width:190px">版块结构</th><th style="width:200px">术语口径</th><th>禁忌词（出现即露馅）</th></tr>
+  ${PACKS.map(p=>`<tr>
+    <td><span class="pk"><i style="background:${p.accent}"></i>${p.name}</span></td>
+    <td>${p.site}</td>
+    <td class="lay">${p.layout}</td>
+    <td>${p.nav.slice(1,5).join(' / ')}</td>
+    <td>${p.terms.join('、')}</td>
+    <td class="ban">${p.banned.slice(0,4).join('、')}</td>
+  </tr>`).join('')}`;
+
+boot(location.hash.slice(1) || 'med');
+</script>
+</body>
+</html>

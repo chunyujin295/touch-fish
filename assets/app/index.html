@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>TouchFish · 书库</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%23ff6b35'/><path d='M9 11h14M9 16h14M9 21h9' stroke='white' stroke-width='2.2' stroke-linecap='round'/></svg>">
+<link rel="stylesheet" href="/assets/app/app.css">
+</head>
+<body>
+
+<aside class="rail">
+  <div class="brand">
+    <span class="mark">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round">
+        <path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z"/><circle cx="15" cy="11" r="1.3" fill="#fff" stroke="none"/>
+      </svg>
+    </span>
+    <span class="brand-t">TouchFish<em>摸鱼阅读器</em></span>
+  </div>
+  <nav class="nav">
+    <button class="nv on" data-view="shelf">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h6a2 2 0 012 2v12a2 2 0 00-2-2H4z"/><path d="M20 5h-6a2 2 0 00-2 2v12a2 2 0 012-2h6z"/></svg>
+      书库
+    </button>
+    <button class="nv" data-view="sites">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 4v5"/></svg>
+      皮肤
+    </button>
+    <button class="nv" data-view="settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.6 1.6 0 00.3 1.8l.1.1a2 2 0 01-2.8 2.8l-.1-.1a1.6 1.6 0 00-2.7 1.1V21a2 2 0 01-4 0v-.1A1.6 1.6 0 007 19.4l-.1.1a2 2 0 01-2.8-2.8l.1-.1a1.6 1.6 0 00-1.1-2.7H3a2 2 0 010-4h.1A1.6 1.6 0 004.6 7L4.5 7a2 2 0 012.8-2.8l.1.1a1.6 1.6 0 001.8.3H9A1.6 1.6 0 0010 3.1V3a2 2 0 014 0v.1a1.6 1.6 0 001 1.5 1.6 1.6 0 001.8-.3l.1-.1a2 2 0 012.8 2.8l-.1.1a1.6 1.6 0 00-.3 1.8V9a1.6 1.6 0 001.5 1H21a2 2 0 010 4h-.1a1.6 1.6 0 00-1.5 1z"/></svg>
+      设置
+    </button>
+  </nav>
+  <div class="rail-foot">
+    <span class="dot"></span><span id="railStatus">本地</span>
+  </div>
+</aside>
+
+<main class="main">
+  <header class="topbar">
+    <div class="tb-l">
+      <h1 id="viewTitle">书库</h1>
+      <p id="viewSub" class="sub">把本地电子书渲染成以假乱真的社区网页</p>
+    </div>
+    <div class="tb-r">
+      <label class="search">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="M16.5 16.5L21 21"/></svg>
+        <input id="searchInput" placeholder="搜索书名或作者" autocomplete="off">
+      </label>
+      <button class="btn primary" id="importBtn">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v10M8 11l4 4 4-4"/><path d="M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>
+        导入书籍
+      </button>
+    </div>
+  </header>
+
+  <!-- 书库 -->
+  <section class="view" id="view-shelf">
+    <div class="stats" id="stats"></div>
+    <div class="grid" id="bookGrid"></div>
+    <div class="empty hidden" id="empty">
+      <div class="empty-art">
+        <div class="ea-book"></div><div class="ea-book b2"></div><div class="ea-book b3"></div>
+      </div>
+      <h2>书库还是空的</h2>
+      <p>把 <b>.epub</b> 或 <b>.txt</b> 拖进这个窗口，或者点右上角的「导入书籍」。<br>书只存在你本机的数据目录里，不上传任何地方。</p>
+      <button class="btn primary" onclick="document.getElementById('fileInput').click()">选择文件</button>
+    </div>
+  </section>
+
+  <!-- 皮肤 -->
+  <section class="view hidden" id="view-sites">
+    <p class="lede">皮肤决定「页面长什么样」，主题包决定「聊什么」。两者必须和你在读的书同属一个行业，否则版式再像也会露馅。</p>
+    <h3 class="sec-t">站点皮肤</h3>
+    <div class="scards" id="siteCards"></div>
+    <h3 class="sec-t">行业主题包</h3>
+    <p class="lede sm">主题包替换导航、版块、推荐池、广告池、评论语气和术语口径，并带一张禁忌词黑名单。</p>
+    <div class="packs" id="packCards"></div>
+  </section>
+
+  <!-- 设置 -->
+  <section class="view hidden" id="view-settings">
+    <div class="panel">
+      <div class="prow">
+        <div class="pl"><b>默认站点皮肤</b><span>每次打开阅读页时使用</span></div>
+        <select id="setSite"></select>
+      </div>
+      <div class="prow">
+        <div class="pl"><b>默认主题包</b><span>决定导航、推荐位、广告与评论的行业语境</span></div>
+        <select id="setPack"></select>
+      </div>
+      <div class="prow">
+        <div class="pl"><b>Boss Key 落点</b><span>在阅读页按 Esc 直接跳转到这里，建议填一个你常开的工作页</span></div>
+        <input id="setBoss" placeholder="留空则跳 about:blank">
+      </div>
+      <div class="prow">
+        <div class="pl"><b>失焦暂停阅读量</b><span>切走窗口时停止数字自增，避免"后台还在涨"的破绽</span></div>
+        <label class="sw"><input type="checkbox" id="setBlur" checked><i></i></label>
+      </div>
+      <div class="prow">
+        <div class="pl"><b>数据目录</b><span>书籍、封面、进度都在这里，删掉即彻底卸载</span></div>
+        <code id="dataDir">—</code>
+      </div>
+      <div class="prow">
+        <div class="pl"><b>端口</b><span>改完需要重启程序</span></div>
+        <input id="setPort" type="number" min="1024" max="65535">
+      </div>
+      <div class="save-row"><button class="btn primary" id="saveSettings">保存设置</button><span id="saveHint" class="hint"></span></div>
+    </div>
+  </section>
+</main>
+
+<!-- 书本抽屉 -->
+<div class="scrim hidden" id="scrim"></div>
+<aside class="drawer" id="drawer">
+  <div class="dw-head">
+    <div class="dw-cover" id="dwCover"></div>
+    <div class="dw-meta">
+      <h2 id="dwTitle">—</h2>
+      <p id="dwAuthor" class="dw-author">—</p>
+      <p id="dwStat" class="dw-stat">—</p>
+    </div>
+    <button class="icon-btn" id="drawerClose">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+  </div>
+
+  <div class="dw-sec">
+    <div class="dw-row">
+      <label>皮肤</label>
+      <select id="dwSite"></select>
+    </div>
+    <div class="dw-row">
+      <label>主题包</label>
+      <select id="dwPack"></select>
+    </div>
+  </div>
+
+  <button class="btn primary wide" id="dwRead">开始阅读</button>
+  <button class="btn ghost wide" id="dwDelete">从书库移除</button>
+
+  <div class="dw-sec dw-chapters">
+    <div class="dw-ch-head">目录 <span id="dwChCount"></span></div>
+    <div class="chl" id="chList"></div>
+  </div>
+</aside>
+
+<input type="file" id="fileInput" accept=".epub,.txt" multiple hidden>
+<div class="dropmask hidden" id="dropmask"><div class="dm-in">松开即导入</div></div>
+<div class="toast" id="toast"></div>
+
+<script src="/assets/app/app.js"></script>
+</body>
+</html>

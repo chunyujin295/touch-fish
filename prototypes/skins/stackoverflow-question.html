@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>c++ - Why does this cache visibility assertion fail on multi-core? - Stack Overflow</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='5' y='22' width='22' height='4' fill='%23bcbbbb'/%3E%3Crect x='5' y='16' width='22' height='4' fill='%23f48024'/%3E%3Crect x='5' y='10' width='22' height='4' fill='%23bcbbbb'/%3E%3C/svg%3E">
+<style>
+:root{
+  --orange:#f48024; --blue:#0074cc; --black:#0c0d0e; --dark:#232629; --gray:#6a737c;
+  --border:#d6d9dc; --bg:#f8f9f9; --tagbg:#e1ecf4; --tagfg:#39739d; --green:#48a868;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI Adjusted","Segoe UI","Liberation Sans",sans-serif;
+  font-size:15px;line-height:1.5;color:var(--dark);background:#fff;-webkit-font-smoothing:antialiased;
+}
+a{color:var(--blue);text-decoration:none}
+a:hover{color:#0a95ff}
+svg{display:block}
+
+/* ========== 顶栏 ========== */
+.hd{background:var(--bg);border-top:3px solid var(--orange);height:50px;display:flex;align-items:center;
+  padding:0 16px;gap:8px;position:sticky;top:0;z-index:50;box-shadow:0 1px 2px rgba(0,0,0,.05)}
+.logo{display:flex;align-items:center;gap:6px;padding:4px 6px;border-radius:3px}
+.logo:hover{background:#e3e6e8}
+.hd .nav{display:flex;gap:2px;margin-left:4px}
+.hd .nav a{color:#525960;font-size:13px;padding:6px 10px;border-radius:1000px}
+.hd .nav a:hover{background:#e3e6e8;color:var(--black)}
+.srch{margin-left:12px;position:relative;flex:1;max-width:640px}
+.srch input{width:100%;height:32px;border:1px solid #babfc4;border-radius:3px;padding:0 10px 0 30px;
+  font-size:13px;font-family:inherit;background:#fff;color:var(--dark);outline:none}
+.srch input:focus{border-color:#6bbbf7;box-shadow:0 0 0 4px rgba(0,116,204,.15)}
+.srch .ic{position:absolute;left:9px;top:8px;color:#838c95}
+.hd .r{margin-left:auto;display:flex;align-items:center;gap:6px}
+.hd .r a{padding:6px 8px;border-radius:3px;color:#525960;font-size:13px}
+.hd .r a:hover{background:#e3e6e8}
+.ava{width:28px;height:28px;border-radius:3px;background:linear-gradient(135deg,#7d8590,#525960);
+  color:#fff;font-size:12px;display:flex;align-items:center;justify-content:center;font-weight:600}
+
+/* ========== 子栏 ========== */
+.subbar{border-bottom:1px solid var(--border);background:#fff}
+.subbar-in{max-width:1264px;margin:0 auto;padding:12px 24px;display:flex;align-items:center;gap:8px}
+.subbar .title{font-size:18px;color:var(--dark)}
+.subbar .btn{margin-left:auto;background:#0a95ff;color:#fff;border:1px solid transparent;border-radius:3px;
+  padding:8px 12px;font-size:13px;font-family:inherit;cursor:pointer;box-shadow:inset 0 1px 0 rgba(255,255,255,.35)}
+.subbar .btn:hover{background:#0074cc}
+
+/* ========== 布局 ========== */
+.wrap{max-width:1264px;margin:0 auto;padding:24px;display:flex;gap:24px;align-items:flex-start}
+.main{flex:1;min-width:0}
+.side{width:300px;flex:0 0 300px}
+
+/* 问题 */
+h1.q-title{font-size:27px;font-weight:400;line-height:1.35;color:var(--black);margin-bottom:8px;word-break:break-word}
+.q-meta{font-size:13px;color:var(--gray);padding-bottom:16px;border-bottom:1px solid var(--border);margin-bottom:16px}
+.q-meta span{color:var(--dark)}
+
+.q-row{display:flex;gap:16px}
+.vote{width:52px;flex:0 0 52px;display:flex;flex-direction:column;align-items:center;gap:8px;padding-top:2px}
+.vote .arrow{color:#babfc4;cursor:pointer}
+.vote .arrow:hover{color:#f48024}
+.vote .n{font-size:21px;color:var(--dark)}
+.vote .n.big{font-size:24px}
+.vote .bookmark{color:#babfc4;margin-top:6px}
+.vote .accepted{color:var(--green)}
+.post{flex:1;min-width:0}
+
+/* 正文 */
+.md{font-size:15px;line-height:1.55;color:var(--dark)}
+.md p{margin:0 0 15px}
+.md h2{font-size:19px;font-weight:600;margin:22px 0 12px;color:var(--black)}
+.md h3{font-size:16px;font-weight:600;margin:18px 0 10px}
+.md ul,.md ol{margin:0 0 15px;padding-left:30px}
+.md li{margin-bottom:5px}
+.md blockquote{margin:0 0 15px;padding:10px 14px;border-left:4px solid #e4e6e8;background:#f8f9f9;color:#525960;font-size:14px}
+.md code{background:#f1f2f3;padding:2px 4px;border-radius:3px;font-size:13px;white-space:nowrap;
+  font-family:ui-monospace,"Cascadia Mono","Segoe UI Mono",Consolas,monospace;color:#242729}
+.md pre{background:#f6f6f6;border-radius:4px;padding:12px;overflow:auto;margin:0 0 15px;font-size:12.8px;line-height:1.5}
+.md pre code{background:none;padding:0;font-size:100%}
+.md .cm{color:#6a737c}.md .kw{color:#a11}.md .str{color:#080}.md .ty{color:#2b91af}
+
+/* 标签 */
+.tags{display:flex;gap:6px;flex-wrap:wrap;margin:20px 0 0}
+.tags a{background:var(--tagbg);color:var(--tagfg);font-size:12px;padding:3px 7px;border-radius:3px;line-height:1.4}
+.tags a:hover{background:#d0e3f1;color:#2c5777}
+
+/* 操作行 */
+.post-links{display:flex;gap:14px;margin-top:18px;font-size:13px;color:var(--gray);flex-wrap:wrap;align-items:center}
+.post-links a{color:var(--gray)}
+.post-links a:hover{color:var(--dark)}
+.post-links .sep{color:#d6d9dc}
+
+/* 用户卡 */
+.usercard{background:#d9eaf7;border-radius:3px;padding:7px 8px;width:200px;margin-left:auto;margin-top:14px;font-size:13px}
+.usercard .t{color:var(--gray);font-size:12px;margin-bottom:6px}
+.usercard .u{display:flex;gap:8px;align-items:flex-start}
+.usercard .ua{width:32px;height:32px;border-radius:3px;color:#fff;font-size:12px;font-weight:600;
+  display:flex;align-items:center;justify-content:center;flex:0 0 32px}
+.usercard .nm{color:var(--blue);font-size:13px}
+.usercard .rep{color:var(--dark);font-size:12px;font-weight:600;margin-top:2px}
+.usercard .rep i{color:#9fa6ad;font-style:normal;font-weight:400}
+
+/* 答案 */
+.answers-head{display:flex;align-items:center;gap:16px;margin:30px 0 6px;padding-top:10px}
+.answers-head h2{font-size:19px;font-weight:400;color:var(--black)}
+.answers-head .sort{margin-left:auto;display:flex;align-items:center;gap:6px;font-size:13px;color:var(--gray)}
+.answers-head .sort select{border:1px solid #babfc4;border-radius:3px;padding:5px 8px;font-size:13px;
+  font-family:inherit;color:var(--dark);background:#fff}
+.answer{padding :19px 0;border-bottom:1px solid var(--border)}
+.answer .vote .n.big{color:var(--dark)}
+
+/* 你的答案 */
+.your-answer{margin-top:32px}
+.your-answer h2{font-size:19px;font-weight:400;margin-bottom:12px}
+.editor{border:1px solid #babfc4;border-radius:3px;overflow:hidden}
+.editor .toolbar{background:#f1f2f3;border-bottom:1px solid #d6d9dc;padding:5px 8px;display:flex;gap:14px;
+  color:#525960;font-size:13px}
+.editor .toolbar span{cursor:pointer;padding:1px 4px;border-radius:2px}
+.editor .toolbar span:hover{background:#e3e6e8}
+.editor .ta{min-height:110px;width:100%;border:none;outline:none;padding:12px;font-size:14px;
+  font-family:inherit;resize:vertical;color:var(--dark)}
+.editor .ta::placeholder{color:#9fa6ad}
+.answer-actions{display:flex;gap:10px;margin-top:12px;align-items:center}
+.answer-actions .post-btn{background:#0a95ff;color:#fff;border:none;border-radius:3px;padding:9px 14px;font-size:13px;
+  font-family:inherit;cursor:pointer;font-weight:500}
+.answer-actions .ghost{background:#fff;border:1px solid #babfc4;border-radius:3px;padding:9px 12px;font-size:13px;
+  font-family:inherit;color:var(--dark);cursor:pointer}
+
+/* 侧栏 */
+.side-module{border:1px solid var(--border);border-radius:3px;box-shadow:0 1px 2px rgba(0,0,0,.03);margin-bottom:16px;overflow:hidden}
+.side-module .mh{background:#fbf3d5;border-bottom:1px solid #f1e5bc;padding:12px 15px;font-size:12px;font-weight:700;color:#525960}
+.side-module .mb{padding:4px 15px 12px}
+.side-module .item{display:flex;gap:10px;padding:9px 0;font-size:13px;line-height:1.4;color:var(--dark)}
+.side-module .item .bullet{color:var(--orange);flex:0 0 auto;font-size:14px;line-height:1.3}
+.side-module .item a{color:var(--dark)}
+.side-module .item a:hover{color:var(--blue)}
+.side-module.meta .mh{background:#f1f2f3;border-color:#e4e6e8}
+.hot-list{padding:8px 0}
+.hot-list a{display:block;font-size:13px;padding:6px 0;color:var(--dark);line-height:1.45}
+.hot-list a:hover{color:var(--blue)}
+.hot-list a:before{content:"›";color:var(--gray);margin-right:7px}
+.ad-box{border:1px solid var(--border);border-radius:3px;padding:15px;background:#fff;margin-bottom:16px;position:relative}
+.ad-box .lbl{position:absolute;top:6px;right:8px;font-size:10px;color:#9fa6ad;letter-spacing:.4px}
+.ad-box h5{font-size:15px;font-weight:600;color:var(--dark);margin:4px 0 8px;line-height:1.4}
+.ad-box p{font-size:12.5px;color:var(--gray);line-height:1.6;margin-bottom:12px}
+.ad-box .go{display:inline-block;border:1px solid #379fef;color:#0074cc;font-size:12.5px;padding:6px 12px;border-radius:3px}
+.ad-box .go:hover{background:#f0f8ff}
+
+/* 页脚 */
+.ft{background:#232629;color:#9199a1;margin-top:40px;padding:32px 0}
+.ft-in{max-width:1264px;margin:0 auto;padding:0 24px;display:flex;gap:40px;flex-wrap:wrap;font-size:12.5px}
+.ft-in h6{color:#babfc4;font-size:11px;letter-spacing:.6px;margin-bottom:10px;text-transform:uppercase}
+.ft-in a{display:block;color:#9199a1;padding:3px 0}
+.ft-in a:hover{color:#fff}
+.ft .cp{margin-left:auto;max-width:300px;line-height:1.7;font-size:12px}
+</style>
+</head>
+<body>
+
+<!-- ========== 顶栏 ========== -->
+<header class="hd">
+  <a class="logo" href="#">
+    <svg width="26" height="30" viewBox="0 0 26 30">
+      <rect x="1" y="25" width="24" height="3.4" fill="#bcbbbb" rx=".6"/>
+      <rect x="1" y="19.4" width="24" height="3.4" fill="#f48024" rx=".6"/>
+      <rect x="1" y="13.8" width="24" height="3.4" fill="#bcbbbb" rx=".6"/>
+      <path d="M5 9.6l15-2.4M6.6 4.2L21 9.4" stroke="#f48024" stroke-width="3.2" stroke-linecap="round"/>
+    </svg>
+  </a>
+  <nav class="nav">
+    <a href="#">About</a><a href="#">Products</a><a href="#">For Teams</a>
+  </nav>
+  <div class="srch">
+    <span class="ic">⌕</span>
+    <input type="text" placeholder="Search…" data-tf-slot="search">
+  </div>
+  <div class="r">
+    <a href="#">Log in</a>
+    <a href="#">Sign up</a>
+    <div class="ava">A</div>
+  </div>
+</header>
+
+<div class="subbar">
+  <div class="subbar-in">
+    <a href="#" style="font-size:13px">← All Questions</a>
+    <button class="btn">Ask Question</button>
+  </div>
+</div>
+
+<div class="wrap">
+  <main class="main">
+
+    <h1 class="q-title" data-tf-slot="article-title">Why does this cache visibility assertion fail on multi-core?</h1>
+    <div class="q-meta">
+      Asked <span>2 days ago</span> · Modified <span>yesterday</span> · Viewed <span>4,281 times</span>
+    </div>
+
+    <!-- 问题 -->
+    <div class="q-row">
+      <div class="vote">
+        <span class="arrow"><svg width="36" height="36" viewBox="0 0 36 36" fill="currentColor"><path d="M2 26h32L18 8z"/></svg></span>
+        <span class="n">12</span>
+        <span class="arrow"><svg width="36" height="36" viewBox="0 0 36 36" fill="currentColor" opacity=".55"><path d="M2 10h32L18 28z"/></svg></span>
+        <span class="bookmark"><svg width="18" height="18" viewBox="0 0 18 18" fill="currentColor"><path d="M3 17V2h12v15l-6-4-6 4z" opacity=".8"/></svg></span>
+      </div>
+      <div class="post">
+        <div class="md" data-tf-slot="body">
+          <p>Environment: 4-core x86_64, Linux 6.1, compiled with <code>-O2</code>. The snippet below runs correctly ten thousand times in a single-threaded stress test, but on a multi-core machine the assertion fails roughly once a week. In the core dump, <code>data</code> is exactly <code>0</code>.</p>
+
+<pre><code><span class="cm">// producer thread</span>
+data = <span class="ty">42</span>;
+ready = <span class="ty">1</span>;
+
+<span class="cm">// consumer thread</span>
+<span class="kw">while</span> (!ready) { <span class="cm">/* spin */</span> }
+<span class="fn">assert</span>(data == <span class="ty">42</span>);   <span class="cm">// fails sometimes</span></code></pre>
+
+          <p>My first guess was that the compiler was optimising away the read. I added <code>volatile</code> to both variables, and I also inserted a <code>printf</code> between the two sides. The result was confusing: <strong>with the logging in place, the bug disappeared.</strong> Without it, the failure comes back within a week.</p>
+
+          <p>So is this compiler reordering, or is it a visibility problem caused by the store buffer? And if it is the latter, why doesn't <code>volatile</code> fix it?</p>
+        </div>
+        <div class="tags">
+          <a href="#">c++</a><a href="#">multithreading</a><a href="#">memory-model</a><a href="#">atomic</a><a href="#">x86-64</a>
+        </div>
+        <div class="post-links">
+          <a href="#">Share</a><span class="sep">|</span><a href="#">Edit</a><span class="sep">|</span>
+          <a href="#">Follow</a><span class="sep">|</span><a href="#">asked 2 days ago</a>
+        </div>
+        <div class="usercard">
+          <div class="t">asked 2 days ago</div>
+          <div class="u">
+            <div class="ua" style="background:linear-gradient(135deg,#6e7bff,#4051d6)">AC</div>
+            <div>
+              <a class="nm" href="#">alex chen</a>
+              <div class="rep">121 <i>●</i> 3 <i>●</i> 7</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 答案 -->
+    <div class="answers-head">
+      <h2>2 Answers</h2>
+      <div class="sort">
+        <span>Sorted by:</span>
+        <select><option>Highest score (default)</option><option>Trending (recent votes count more)</option><option>Date modified</option></select>
+      </div>
+    </div>
+
+    <div class="answer">
+      <div class="q-row">
+        <div class="vote">
+          <span class="arrow"><svg width="36" height="36" viewBox="0 0 36 36" fill="currentColor"><path d="M2 26h32L18 8z"/></svg></span>
+          <span class="n big">48</span>
+          <span class="arrow"><svg width="36" height="36" viewBox="0 0 36 36" fill="currentColor" opacity=".55"><path d="M2 10h32L18 28z"/></svg></span>
+          <span class="accepted"><svg width="34" height="34" viewBox="0 0 36 36" fill="currentColor"><path d="M6 19l7 8L30 9" stroke="currentColor" stroke-width="4" fill="none" stroke-linecap="round"/></svg></span>
+        </div>
+        <div class="post">
+          <div class="md">
+            <p>It's the latter — and to be precise, it's both layers at once. Let me separate them.</p>
+
+            <h2>1. Ordering is a local consensus</h2>
+            <p>Each core believes it observed the correct order, but different cores can observe different orders. The hardware does two related things: every core gets its own store buffer and invalidate queue, and it is allowed to reorder instructions as long as <strong>single-threaded semantics</strong> are preserved.</p>
+
+            <blockquote>A program that was only verified single-threaded has proved correctness for a small subset of all possible interleavings.</blockquote>
+
+            <p>In your case, <code>ready = 1</code> can become visible to the other core before <code>data = 42</code> does. Once the store sits in the store buffer it "looks finished" locally, but it has not reached the cache line yet.</p>
+
+            <h2>2. Why <code>volatile</code> does not help</h2>
+            <ul>
+              <li><code>volatile</code> guarantees the access is not optimised away and really happens — it does <em>not</em> establish an ordering that other cores must observe;</li>
+              <li><code>printf</code> happens to act as a barrier (it takes a lock / makes a syscall), which is exactly why the symptom "heals" itself when you add logging. Do not trust that observation;</li>
+              <li>the correct fix is a release store paired with an acquire load, so that publishing the flag carries the data with it.</li>
+            </ul>
+
+<pre><code><span class="kw">std::atomic</span>&lt;<span class="kw">bool</span>&gt; ready{<span class="kw">false</span>};
+
+<span class="cm">// producer</span>
+data = <span class="ty">42</span>;
+ready.store(<span class="kw">true</span>, <span class="kw">std::memory_order_release</span>);
+
+<span class="cm">// consumer</span>
+<span class="kw">while</span> (!ready.load(<span class="kw">std::memory_order_acquire</span>)) {}
+<span class="fn">assert</span>(data == <span class="ty">42</span>);   <span class="cm">// now guaranteed</span></code></pre>
+
+            <p>One more thing worth internalising: the bug is not intermittent, it is deterministic — it is simply waiting for a sufficiently bad interleaving. "Once a week under production load" is the normal shape of this class of bug.</p>
+          </div>
+          <div class="post-links">
+            <a href="#">Share</a><span class="sep">|</span><a href="#">Edit</a><span class="sep">|</span>
+            <a href="#">Follow</a><span class="sep">|</span><a href="#">answered 2 days ago</a>
+          </div>
+          <div class="usercard">
+            <div class="t">answered 2 days ago</div>
+            <div class="u">
+              <div class="ua" style="background:linear-gradient(135deg,#5ec4a8,#2f855a)">MO</div>
+              <div>
+                <a class="nm" href="#">mira okonkwo</a>
+                <div class="rep">18.4k <i>●</i> 42 <i>●</i> 61</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="answer" style="border-bottom:none">
+      <div class="q-row">
+        <div class="vote">
+          <span class="arrow"><svg width="36" height="36" viewBox="0 0 36 36" fill="currentColor"><path d="M2 26h32L18 8z"/></svg></span>
+          <span class="n big">6</span>
+          <span class="arrow"><svg width="36" height="36" viewBox="0 0 36 36" fill="currentColor" opacity=".55"><path d="M2 10h32L18 28z"/></svg></span>
+        </div>
+        <div class="post">
+          <div class="md">
+            <p>Adding to the accepted answer: if <code>data</code> is a struct, making every field atomic is <strong>not</strong> enough. You still need one publication step for the whole object, otherwise a reader can observe a half-updated struct (torn read).</p>
+            <p>Either put the entire struct behind one lock, or publish it through a single atomic pointer with release/acquire semantics.</p>
+          </div>
+          <div class="post-links"><a href="#">Share</a><span class="sep">|</span><a href="#">Follow</a><span class="sep">|</span><a href="#">answered yesterday</a></div>
+          <div class="usercard">
+            <div class="t">answered yesterday</div>
+            <div class="u">
+              <div class="ua" style="background:linear-gradient(135deg,#ff9a76,#e8590c)">KP</div>
+              <div><a class="nm" href="#">kernel_panic</a><div class="rep">3,204 <i>●</i> 11 <i>●</i> 24</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 你的答案 -->
+    <div class="your-answer">
+      <h2>Your Answer</h2>
+      <div class="editor">
+        <div class="toolbar">
+          <span><b>B</b></span><span><i>I</i></span><span>S</span><span>🔗</span><span>{ }</span>
+          <span>"</span><span>🖼</span><span>—</span><span>⏎</span>
+        </div>
+        <textarea class="ta" placeholder="Thanks for contributing an answer to Stack Overflow!"></textarea>
+      </div>
+      <div class="answer-actions">
+        <button class="post-btn">Post Your Answer</button>
+        <button class="ghost">Discard</button>
+        <span style="font-size:12px;color:var(--gray);margin-left:8px">By clicking "Post Your Answer", you agree to our terms of service and acknowledge you have read our privacy policy.</span>
+      </div>
+    </div>
+  </main>
+
+  <!-- 侧栏 -->
+  <aside class="side">
+    <div class="side-module">
+      <div class="mh">The Overflow Blog</div>
+      <div class="mb">
+        <div class="item"><span class="bullet">✎</span><a href="#">What the evolving AI stack means for developers in 2027</a></div>
+        <div class="item"><span class="bullet">✎</span><a href="#">Why we still can't hire enough people who understand memory models</a></div>
+        <div class="item"><span class="bullet">✦</span><a href="#">Podcast: 50 episodes of debugging stories from the trenches</a></div>
+      </div>
+    </div>
+
+    <div class="side-module meta">
+      <div class="mh">Featured on Meta</div>
+      <div class="mb">
+        <div class="item"><span class="bullet">●</span><a href="#">2026 Community Moderator Election results</a></div>
+        <div class="item"><span class="bullet">●</span><a href="#">Temporary policy: Generative AI answers are banned</a></div>
+        <div class="item"><span class="bullet">●</span><a href="#">We're changing how duplicate questions are flagged</a></div>
+      </div>
+    </div>
+
+    <div class="ad-box">
+      <span class="lbl">AD</span>
+      <h5>Stack Overflow for Teams</h5>
+      <p>Capture your team's private knowledge and answer questions before they are asked.</p>
+      <a class="go" href="#">Start for free</a>
+    </div>
+
+    <div class="side-module">
+      <div class="mh">Hot Network Questions</div>
+      <div class="mb hot-list" style="padding:8px 15px 12px">
+        <a href="#">Is it legal for an employer to read my personal email on a work laptop?</a>
+        <a href="#">Why does my cat sit exactly on the keyboard every time I open a terminal?</a>
+        <a href="#">Did any Apollo mission carry a spare guidance computer?</a>
+        <a href="#">How do I politely decline a promotion I don't want?</a>
+        <a href="#">What is the origin of the phrase "rubber duck debugging"?</a>
+        <a href="#">Why is the sky brighter near the horizon at sunset than at noon?</a>
+      </div>
+    </div>
+
+    <div class="side-module meta">
+      <div class="mh">Related</div>
+      <div class="mb hot-list" style="padding:8px 15px 12px">
+        <a href="#" style="font-size:12.5px">When should I use atomic_thread_fence?</a>
+        <a href="#" style="font-size:12.5px">Does x86 allow store-store reordering?</a>
+        <a href="#" style="font-size:12.5px">False sharing and cache line padding</a>
+      </div>
+    </div>
+  </aside>
+</div>
+
+<footer class="ft">
+  <div class="ft-in">
+    <div style="min-width:170px">
+      <h6>Stack Overflow</h6>
+      <a href="#">Questions</a><a href="#">Help</a><a href="#">Chat</a><a href="#">Products</a>
+    </div>
+    <div style="min-width:170px">
+      <h6>Company</h6>
+      <a href="#">About</a><a href="#">Press</a><a href="#">Work Here</a><a href="#">Legal</a>
+    </div>
+    <div style="min-width:170px">
+      <h6>Stack Exchange Network</h6>
+      <a href="#">Technology</a><a href="#">Culture &amp; recreation</a><a href="#">Science</a>
+    </div>
+    <div class="cp">Site design / logo © 2026 Stack Exchange Inc; user contributions licensed under CC BY-SA 4.0.</div>
+  </div>
+</footer>
+
+</body>
+</html>

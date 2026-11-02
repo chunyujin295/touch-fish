@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>为什么你的并发代码在单线程测试里永远是对的？ - 知乎</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230084ff'/%3E%3Ctext x='16' y='22' font-size='15' font-family='Arial' font-weight='bold' fill='%23fff' text-anchor='middle'%3E知%3C/text%3E%3C/svg%3E">
+<style>
+:root{
+  --blue:#0084ff; --text:#121212; --gray:#8590a6; --light:#b8bfcc; --line:#f0f2f7; --bgbtn:#f6f6f6;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue","Microsoft YaHei",sans-serif;
+  font-size:15px;line-height:1.7;color:var(--text);background:#fff;-webkit-font-smoothing:antialiased}
+a{color:inherit;text-decoration:none}
+a:hover{color:var(--gray)}
+ul{list-style:none}
+
+/* ===== 顶栏 ===== */
+.hd{height:52px;background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:50}
+.hd-in{max-width:1100px;margin:0 auto;height:100%;display:flex;align-items:center;padding:0 20px;gap:26px}
+.logo{font-size:26px;font-weight:700;color:var(--blue);letter-spacing:-1px;font-family:"PingFang SC",sans-serif}
+.nav{display:flex;gap:24px;font-size:15px;color:#444}
+.nav a.on{color:var(--text);font-weight:500}
+.srch{flex:1;max-width:320px;margin-left:8px;position:relative}
+.srch input{width:100%;height:34px;border:none;background:#f6f6f6;border-radius:17px;padding:0 14px 0 34px;
+  font-size:13.5px;outline:none;font-family:inherit;color:#333}
+.srch input::placeholder{color:var(--light)}
+.srch .ic{position:absolute;left:12px;top:9px;color:var(--gray);font-size:14px}
+.hd-r{margin-left:auto;display:flex;align-items:center;gap:16px;font-size:14px;color:#444}
+.hd-r .n{position:relative}
+.hd-r .n b{position:absolute;top:-8px;right:-9px;background:#f1403c;color:#fff;font-size:10px;border-radius:8px;
+  min-width:14px;height:14px;display:flex;align-items:center;justify-content:center;padding:0 3px;font-weight:400}
+.ava{width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,#7bb6ff,#0084ff);color:#fff;
+  font-size:12px;display:flex;align-items:center;justify-content:center;font-weight:600}
+
+/* ===== 布局 ===== */
+.wrap{max-width:1100px;margin:0 auto;padding:24px 20px 60px;display:flex;gap:40px;align-items:flex-start}
+.main{flex:1;min-width:0;max-width:694px;margin:0 auto}
+.side{width:296px;flex:0 0 296px}
+
+/* 文章头 */
+.art-cat{font-size:13px;margin-bottom:12px}
+.art-cat a{color:var(--blue)}
+h1.title{font-size:31px;line-height:1.42;font-weight:600;color:var(--text);letter-spacing:-.2px;margin-bottom:20px}
+.author{display:flex;align-items:center;gap:12px;margin-bottom:26px}
+.author .a{width:40px;height:40px;border-radius:50%;flex:0 0 40px;background:linear-gradient(135deg,#7bb6ff,#0084ff);
+  color:#fff;font-size:15px;font-weight:600;display:flex;align-items:center;justify-content:center}
+.author .nm{font-size:15px;font-weight:500}
+.author .bio{font-size:13px;color:var(--gray);margin-top:2px}
+.author .f{margin-left:auto;background:var(--blue);color:#fff;font-size:13px;padding:6px 14px;border-radius:3px}
+.author .f:hover{color:#fff;opacity:.9}
+
+/* 正文 */
+.article{font-size:15.5px;line-height:1.85;color:var(--text);letter-spacing:.2px}
+.article p{margin-bottom:20px}
+.article h2{font-size:20px;font-weight:600;margin:32px 0 16px;line-height:1.5}
+.article h3{font-size:17px;font-weight:600;margin:24px 0 12px}
+.article strong{font-weight:600}
+.article blockquote{margin:24px 0;padding:14px 18px;background:#f9fafc;border-left:3px solid #d3dae6;
+  color:#4a5568;font-size:15px;line-height:1.85}
+.article ul{margin-bottom:20px;padding-left:22px}
+.article li{list-style:disc;margin-bottom:8px}
+.article .inl{background:#f6f6f6;border-radius:3px;padding:2px 5px;font-size:13.5px;color:#c7254e;
+  font-family:"SF Mono",Consolas,Menlo,monospace}
+.article pre{background:#f6f6f6;border-radius:4px;padding:14px 16px;overflow:auto;margin-bottom:20px;
+  font-size:13px;line-height:1.7;color:#24292e;font-family:"SF Mono",Consolas,Menlo,monospace}
+.article pre .cm{color:#6a737d}
+.article pre .kw{color:#d73a49}
+.article pre .num{color:#005cc5}
+.figure{margin:24px 0;text-align:center}
+.figure .ph{height:160px;background:#f9fafc;border:1px solid #eef1f6;border-radius:4px;display:flex;
+  align-items:center;justify-content:center;color:#b8bfcc;font-size:12.5px}
+.figure .cap{font-size:12.5px;color:var(--gray);margin-top:8px}
+
+/* 操作区 */
+.ops{display:flex;gap:10px;align-items:center;margin:34px 0 8px;flex-wrap:wrap}
+.pill{display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 14px;border-radius:17px;
+  background:var(--bgbtn);color:#444;font-size:14px;cursor:pointer;border:none;font-family:inherit}
+.pill:hover{background:#eff2f7;color:#444}
+.pill.up{background:rgba(0,132,255,.1);color:var(--blue);font-weight:500}
+.pill.up:hover{background:rgba(0,132,255,.16);color:var(--blue)}
+.pill .n{font-weight:600}
+.meta-foot{font-size:13px;color:var(--gray);margin-top:16px;display:flex;gap:14px;flex-wrap:wrap}
+.meta-foot a{color:var(--gray);text-decoration:underline;text-decoration-color:#dfe3ea}
+
+/* 评论 */
+.cmt-sec{margin-top:36px;border-top:1px solid var(--line);padding-top:22px}
+.cmt-sec .head{display:flex;align-items:center;gap:12px;margin-bottom:18px}
+.cmt-sec .head h3{font-size:16px;font-weight:600}
+.cmt-sec .head span{font-size:13px;color:var(--gray)}
+.cmt-sec .head .sort{margin-left:auto;font-size:13px;color:var(--gray)}
+.cmt-box{background:#f9fafc;border-radius:4px;padding:14px 16px;margin-bottom:22px}
+.cmt-box .ta{width:100%;min-height:64px;border:none;background:transparent;outline:none;resize:none;font-size:14px;
+  font-family:inherit;color:#333;line-height:1.7}
+.cmt-box .ta::placeholder{color:var(--light)}
+.cmt-box .r{display:flex;justify-content:flex-end;margin-top:6px}
+.cmt-box .r button{background:var(--blue);color:#fff;border:none;border-radius:3px;font-size:13px;height:30px;
+  padding:0 16px;cursor:pointer;font-family:inherit}
+.cmt{display:flex;gap:12px;padding:14px 0}
+.cmt .av{width:36px;height:36px;border-radius:50%;flex:0 0 36px;color:#fff;font-size:13px;font-weight:600;
+  display:flex;align-items:center;justify-content:center}
+.cmt .c{flex:1;min-width:0}
+.cmt .c .h{font-size:14px;font-weight:500;margin-bottom:5px}
+.cmt .c .h .tag{font-size:11px;color:var(--gray);border:1px solid var(--line);border-radius:2px;padding:0 4px;font-weight:400;margin-left:6px}
+.cmt .c .t{font-size:14.5px;line-height:1.75;color:#1a1a1a}
+.cmt .c .t .at{color:var(--blue)}
+.cmt .c .f{font-size:12.5px;color:var(--gray);margin-top:8px;display:flex;gap:16px;align-items:center}
+.cmt .c .f span{cursor:pointer}
+.cmt .c .f span:hover{color:var(--blue)}
+
+/* 侧栏 */
+.catalog{border-left:2px solid #f2f4f8;padding-left:2px;margin-bottom:26px;position:sticky;top:76px}
+.catalog .h{font-size:12.5px;color:var(--gray);margin-bottom:8px;padding-left:12px;letter-spacing:.5px}
+.catalog a{display:block;font-size:13.5px;color:#444;padding:6px 0 6px 12px;margin-left:-2px;
+  border-left:2px solid transparent;line-height:1.5}
+.catalog a:hover{color:var(--blue)}
+.catalog a.on{color:var(--blue);border-left-color:var(--blue);font-weight:500}
+.side-title{font-size:14px;font-weight:600;margin:0 0 12px;color:#444}
+.rec{display:flex;gap:10px;margin-bottom:16px}
+.rec .t{flex:1;font-size:14px;line-height:1.55;color:#1a1a1a}
+.rec .t:hover{color:var(--blue)}
+.rec .t p{font-size:12px;color:var(--gray);margin-top:6px}
+.rec .th{width:76px;height:52px;flex:0 0 76px;border-radius:4px;background:#eef2f8}
+.ad-card{border:1px solid var(--line);border-radius:4px;padding:16px;margin-bottom:20px;position:relative;background:#fff}
+.ad-card .lb{position:absolute;bottom:6px;right:8px;font-size:10px;color:var(--light)}
+.ad-card h5{font-size:14.5px;font-weight:600;line-height:1.5;margin-bottom:8px}
+.ad-card p{font-size:12.5px;color:var(--gray);line-height:1.7}
+.ad-card .go{display:inline-block;margin-top:10px;border:1px solid var(--blue);color:var(--blue);font-size:12.5px;
+  padding:4px 12px;border-radius:3px}
+
+/* 页脚 */
+.ft{border-top:1px solid var(--line);padding:22px 0 40px;text-align:center;font-size:12.5px;color:var(--gray)}
+.ft a{color:var(--gray);margin:0 8px}
+@media(max-width:980px){.side{display:none}}
+</style>
+</head>
+<body>
+
+<header class="hd">
+  <div class="hd-in">
+    <a class="logo" href="#">知乎</a>
+    <nav class="nav"><a href="#">首页</a><a href="#" class="on">会员</a><a href="#">发现</a><a href="#">等你来答</a></nav>
+    <div class="srch"><span class="ic">⌕</span><input type="text" placeholder="搜索你感兴趣的内容" data-tf-slot="search"></div>
+    <div class="hd-r">
+      <a class="n" href="#">消息<b>2</b></a>
+      <a href="#">私信</a>
+      <a href="#">创作中心</a>
+      <div class="ava">舟</div>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+  <main class="main">
+    <div class="art-cat"><a href="#">分布式系统</a> · 专栏</div>
+    <h1 class="title" data-tf-slot="article-title">为什么你的并发代码在单线程测试里永远是对的？</h1>
+
+    <div class="author">
+      <div class="a">舟</div>
+      <div>
+        <div class="nm">云舟</div>
+        <div class="bio">写代码，也写代码为什么这样写</div>
+      </div>
+      <a class="f" href="#">+ 关注</a>
+    </div>
+
+    <article class="article" data-tf-slot="body">
+      <p>我们习惯把程序看成一条按顺序执行的指令流：先算 A，再算 B，最后写 C。<strong>先发生的事一定先发生</strong>——这句话在单核时代几乎是不证自明的，因为硬件也是这么执行的。</p>
+
+      <p>但当你把视角从单核挪到多核，从进程内挪到进程外，"顺序"这个词就开始松动了。它并没有消失，只是从客观事实变成了<strong>局部共识</strong>：每个核都以为自己看到了正确的顺序，而它们看到的顺序可以互不相同。</p>
+
+      <h2>一、顺序是一种局部共识</h2>
+
+      <p>缓存不是一种优化项，而是现代计算机得以存在的前提。CPU 与主存之间的延迟差已经拉开到两个数量级以上：一次 L1 命中大约 4 个周期，一次访存要 200 到 300 个周期。如果每个变量都要去主存取，那么哪怕最平凡的程序也会慢到不可用。</p>
+
+      <p>于是硬件做了两件事，而且它们互相配合：一是每个核都有自己的 store buffer 和 invalidate queue；二是允许在不改变单线程语义的前提下对指令重排。这两件事合起来，就是所有内存模型问题的源头。</p>
+
+      <blockquote>一个程序如果只在单线程下被验证过，那么它对"正确"的证明就只覆盖了所有可能执行的交错中的一小部分。</blockquote>
+
+      <p>下面这段代码几乎每一本讲并发的书都会引用：</p>
+
+<pre><span class="cm">// 生产者线程</span>
+data = <span class="num">42</span>;
+ready = <span class="num">1</span>;
+
+<span class="cm">// 消费者线程</span>
+<span class="kw">while</span> (!ready) { <span class="cm">/* spin */</span> }
+assert(data == <span class="num">42</span>);   <span class="cm">// 有可能失败</span></pre>
+
+      <p>很多人第一次看到这个例子的反应是"编译器优化了吧"。把 <span class="inl">-O2</span> 关掉，加上 <span class="inl">volatile</span>，问题照旧。因为重排不只发生在编译器，也发生在 CPU 的乱序执行单元和缓存一致性协议之间。<span class="inl">volatile</span> 保证的是"不被优化掉"，不是"对其它核可见的顺序"。</p>
+
+      <h2>二、那个"每周崩一次"的 bug</h2>
+
+      <p>这类 bug 有一个非常稳定的特征：它在单线程压测里跑一万次都正确，在四核机器上每周崩一次；日志里没有异常，core dump 里变量值看起来"完全正常"。它不偶发，它是必然，只是在等一个足够坏的时序。</p>
+
+      <div class="figure">
+        <div class="ph">store buffer / invalidate queue 示意图</div>
+        <div class="cap">图 4-3　写操作"看起来"立刻完成，但它还没落到缓存行</div>
+      </div>
+
+      <ul>
+        <li><strong>复现条件苛刻</strong>：需要两个核同时进入临界窗口，且其中一个恰好被中断或迁移；</li>
+        <li><strong>加日志即消失</strong>：因为日志引入了屏障，时序被"治好"了——这也是最迷惑人的地方；</li>
+        <li><strong>修复成本极低，定位成本极高</strong>：最后往往只是补一个 <span class="inl">std::atomic</span> 的 acquire/release 语义。</li>
+      </ul>
+
+      <h2>三、写进工程习惯</h2>
+
+      <p>理解内存模型之后，落到工程上其实只有很少几条可执行的规则：共享状态默认不可变；可变共享状态一律走同步原语，不要靠"我觉得这里不会重排"；任何时候看到 <span class="inl">if (flag)</span> 去读另一份数据，都停下来想一秒。</p>
+
+      <p>真正需要建立的直觉不是"记住 MESI 的四个状态"，而是：<strong>任何跨线程共享的可变状态，都必须显式地建立 happens-before 关系</strong>。编译器与硬件只对单线程负责，跨线程的顺序需要你自己付钱。</p>
+    </article>
+
+    <div class="ops">
+      <button class="pill up">▲ 赞同 <span class="n" data-tf-slot="stat-like">1.2k</span></button>
+      <button class="pill">▼</button>
+      <button class="pill">💬 添加评论</button>
+      <button class="pill">↗ 分享</button>
+      <button class="pill">⭐ 收藏 <span class="n">36</span></button>
+      <button class="pill">♡ 喜欢</button>
+      <button class="pill" style="padding:0 12px">···</button>
+    </div>
+
+    <div class="meta-foot">
+      <span>发布于 2026-10-28 21:14</span>
+      <span>・</span>
+      <a href="#">著作权归作者所有</a>
+      <a href="#">举报</a>
+    </div>
+
+    <section class="cmt-sec">
+      <div class="head">
+        <h3>7 条评论</h3>
+        <span>默认排序</span>
+        <div class="sort">切换为时间排序 ▾</div>
+      </div>
+
+      <div class="cmt-box">
+        <textarea class="ta" placeholder="写下你的评论…"></textarea>
+        <div class="r"><button>发布</button></div>
+      </div>
+
+      <div class="cmt">
+        <div class="av" style="background:linear-gradient(135deg,#ffb26b,#f0862f)">K</div>
+        <div class="c">
+          <div class="h">kernel_panic_<span class="tag">作者</span></div>
+          <div class="t">"加日志即消失"这句太真实了，我们上次排查丢更新，最后发现是打印语句里的锁把时序改了，白查两天。</div>
+          <div class="f"><span>▲ 赞同 12</span><span>💬 回复</span><span>2 小时前</span></div>
+        </div>
+      </div>
+      <div class="cmt">
+        <div class="av" style="background:linear-gradient(135deg,#7bc8a4,#3f9b6d)">阿</div>
+        <div class="c">
+          <div class="h">阿伟在写bug</div>
+          <div class="t">图 4-3 能发个原图吗？手机上有点糊，看不太清 store buffer 的位置。</div>
+          <div class="f"><span>▲ 赞同 3</span><span>💬 回复</span><span>5 小时前</span></div>
+        </div>
+      </div>
+      <div class="cmt">
+        <div class="av" style="background:linear-gradient(135deg,#a78bfa,#7c5cf0)">L</div>
+        <div class="c">
+          <div class="h">Leo_Go</div>
+          <div class="t">补充一点：C++ 的 volatile 和 Java 的 volatile 完全不是一回事，很多文章混着讲，新人很容易被带偏。</div>
+          <div class="f"><span>▲ 赞同 28</span><span>💬 回复</span><span>昨天 22:41</span></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <aside class="side">
+    <div class="catalog" data-tf-slot="toc">
+      <div class="h">目录</div>
+      <a href="#s1" class="on">一、顺序是一种局部共识</a>
+      <a href="#s2">二、那个"每周崩一次"的 bug</a>
+      <a href="#s3">三、写进工程习惯</a>
+    </div>
+
+    <div class="ad-card">
+      <h5>2026 云原生开发者大会<br>早鸟票 5 折</h5>
+      <p>48 场技术专场 · 11.28 上海</p>
+      <a class="go" href="#">免费领票</a>
+      <span class="lb">广告</span>
+    </div>
+
+    <div class="side-title">推荐阅读</div>
+    <a class="rec" href="#">
+      <div class="t">Pod 一直 CrashLoopBackOff？我排查了 6 个小时，最后发现是探针写错了<p>1.2w 赞同 · 3 天前</p></div>
+      <div class="th" style="background:linear-gradient(135deg,#dfe9f5,#c9d9ec)"></div>
+    </a>
+    <a class="rec" href="#">
+      <div class="t">Redis 缓存击穿、穿透、雪崩，到底该怎么区分？<p>8624 赞同 · 5 天前</p></div>
+      <div class="th" style="background:linear-gradient(135deg,#f5e3df,#ecd2c9)"></div>
+    </a>
+    <a class="rec" href="#">
+      <div class="t">我花了三个月，把公司的 CI 从 22 分钟优化到 4 分钟<p>5417 赞同 · 1 周前</p></div>
+      <div class="th" style="background:linear-gradient(135deg,#e2f1e6,#cbe4d2)"></div>
+    </a>
+  </aside>
+</div>
+
+<footer class="ft">
+  <div><a href="#">刘看山</a><a href="#">知乎指南</a><a href="#">知乎协议</a><a href="#">应用</a><a href="#">工作</a></div>
+  <div style="margin-top:8px">© 2026 知乎</div>
+</footer>
+
+<script>
+(function () {
+  var links = document.querySelectorAll('.catalog a');
+  var heads = [].map.call(links, function (a) { return document.querySelector(a.getAttribute('href')); });
+  function sync() {
+    var y = window.scrollY + 120, cur = 0;
+    heads.forEach(function (h, i) { if (h && h.offsetTop <= y) cur = i; });
+    links.forEach(function (a, i) { a.classList.toggle('on', i === cur); });
+  }
+  window.addEventListener('scroll', sync, { passive: true }); sync();
+})();
+</script>
+</body>
+</html>

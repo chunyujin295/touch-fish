@@ -1,0 +1,34 @@
+/* 学术版式：衬线标题 + 摘要卡 + 参考文献，素净接近学术论坛 */
+body.ly-acad{--bg:#fbfbfa;--line:#e9e9e6;--ink:#262626;--ink2:#4b4b4b;--ink3:#8a8a85}
+body.ly-acad .hd{background:#fff;border-bottom:1px solid #ececea}
+body.ly-acad h1.pt{
+  font-family:Georgia,"Songti SC","Source Han Serif SC","Noto Serif CJK SC",serif;
+  font-size:23px;line-height:1.55;letter-spacing:0;
+}
+body.ly-acad .prose{
+  font-family:Georgia,"Songti SC","Source Han Serif SC","Noto Serif CJK SC",serif;
+  font-size:16px;line-height:1.95;color:#262626;
+}
+body.ly-acad .prose h2{font-family:inherit;font-size:16.5px}
+body.ly-acad .mt{border-bottom:1px solid #ececea}
+body.ly-acad .abs{
+  background:#fff;border:1px solid #e8e8e5;border-radius:4px;padding:15px 17px;margin-bottom:22px;
+  font-size:13.5px;line-height:1.9;color:#4b4b4b;
+}
+body.ly-acad .abs .ah{font-size:11.5px;font-weight:700;color:#8a8a85;letter-spacing:1.2px;
+  margin-bottom:7px;text-transform:uppercase;font-family:-apple-system,system-ui,sans-serif}
+body.ly-acad .abs p{margin:0 0 7px}
+body.ly-acad .abs p:last-child{margin:0}
+body.ly-acad .abs .kw{color:#6b6b66;font-size:13px}
+body.ly-acad .abs .kw b{color:#3f3f3c}
+body.ly-acad .refs{
+  margin-top:26px;padding-top:16px;border-top:1px solid #ececea;font-size:12.5px;color:#6b6b66;line-height:1.95;
+}
+body.ly-acad .refs .rh{font-weight:700;color:#4b4b4b;margin-bottom:6px;font-size:13px}
+body.ly-acad .cm{background:#fff;border:1px solid #e9e9e6;border-radius:4px}
+body.ly-acad .mod,body.ly-acad .ad{border-radius:4px}
+
+@media (max-width:900px){
+  body.ly-acad .grid{grid-template-columns:1fr}
+  body.ly-acad .side{position:static}
+}

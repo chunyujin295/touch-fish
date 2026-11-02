@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>缓存一致性排查手册（值班版） - 工程效能 - Confluence</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230052cc'/%3E%3Cpath d='M8 20c3-4 5-6 8-6s5 2 8 6' stroke='%23fff' stroke-width='2.6' fill='none' stroke-linecap='round'/%3E%3Cpath d='M8 12c3 4 5 6 8 6s5-2 8-6' stroke='%2379e2ff' stroke-width='2' fill='none' stroke-linecap='round' opacity='.7'/%3E%3C/svg%3E">
+<style>
+:root{
+  --head:#205081; --primary:#0052cc; --text:#172b4d; --subtle:#6b778c; --border:#dfe1e6;
+  --bg-sub:#f4f5f7; --link:#0052cc;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,"Segoe UI","Microsoft YaHei",Roboto,Arial,sans-serif;font-size:14px;line-height:1.6;
+  color:var(--text);background:#fff}
+a{color:var(--link);text-decoration:none}
+a:hover{text-decoration:underline}
+ul,ol{margin:0}
+
+/* ===== 顶栏 ===== */
+.hd{background:var(--head);height:56px;display:flex;align-items:center;padding:0 16px;gap:6px;color:#fff}
+.hd .brand{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:3px;font-size:17px;font-weight:600;
+  letter-spacing:.2px;color:#fff}
+.hd .brand:hover{background:rgba(255,255,255,.1);text-decoration:none;color:#fff}
+.hd .brand .dot{width:22px;height:22px;border-radius:4px;background:rgba(255,255,255,.18);display:flex;
+  align-items:center;justify-content:center}
+.hd .item{padding:7px 12px;border-radius:3px;font-size:14px;color:#fff;opacity:.92}
+.hd .item:hover{background:rgba(255,255,255,.12);text-decoration:none;color:#fff}
+.hd .create{background:rgba(255,255,255,.16);margin-left:8px}
+.hd .srch{margin-left:auto;position:relative}
+.hd .srch input{width:240px;height:32px;border:none;border-radius:3px;background:rgba(255,255,255,.16);
+  color:#fff;padding:0 12px 0 32px;font-size:13.5px;outline:none;font-family:inherit}
+.hd .srch input::placeholder{color:rgba(255,255,255,.72)}
+.hd .srch .ic{position:absolute;left:10px;top:8px;opacity:.8}
+.hd .avatar{width:32px;height:32px;border-radius:50%;background:#57d9a3;color:#0b3b2e;font-size:12px;
+  font-weight:600;display:flex;align-items:center;justify-content:center;margin-left:8px}
+
+/* 公告条 */
+.announce{background:#fffae6;border-bottom:1px solid #ffe380;padding:9px 24px;font-size:13px;color:#172b4d;
+  display:flex;align-items:center;gap:8px}
+.announce b{color:#974f0c}
+.announce .x{margin-left:auto;color:#a5adba;cursor:pointer}
+
+/* ===== 面包屑 ===== */
+.crumb{max-width:1240px;margin:0 auto;padding:14px 24px 0;font-size:13px;color:var(--subtle)}
+.crumb a{color:var(--subtle)}
+.crumb .sep{margin:0 7px;color:#c1c7d0}
+
+/* ===== 布局 ===== */
+.layout{max-width:1240px;margin:0 auto;padding:0 24px 60px;display:flex;gap:32px;align-items:flex-start}
+.main{flex:1;min-width:0;max-width:820px;padding-top:14px}
+.side{width:280px;flex:0 0 280px;padding-top:14px;position:sticky;top:14px}
+
+h1.ptitle{font-size:28px;line-height:1.35;font-weight:600;color:var(--text);letter-spacing:-.2px;margin-bottom:10px}
+.byline{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--subtle);padding-bottom:16px;
+  border-bottom:1px solid var(--border);margin-bottom:22px;flex-wrap:wrap}
+.byline .a{width:24px;height:24px;border-radius:50%;background:linear-gradient(135deg,#57d9a3,#36b37e);color:#fff;
+  font-size:10px;font-weight:600;display:flex;align-items:center;justify-content:center}
+.byline b{color:var(--text);font-weight:500}
+.byline .dot{color:#c1c7d0}
+.byline .right{margin-left:auto;display:flex;gap:8px}
+.byline .btn{height:28px;padding:0 10px;border:1px solid var(--border);background:#fff;border-radius:3px;
+  font-size:13px;color:var(--text);display:inline-flex;align-items:center;gap:5px;cursor:pointer;font-family:inherit}
+.byline .btn:hover{background:var(--bg-sub)}
+.byline .btn.on{background:#deebff;border-color:#b3d4ff;color:var(--primary)}
+
+/* 正文 */
+.doc{font-size:14.5px;line-height:1.75;color:var(--text)}
+.doc p{margin-bottom:14px}
+.doc h2{font-size:20px;font-weight:600;margin:30px 0 12px;color:var(--text);line-height:1.4}
+.doc h3{font-size:16px;font-weight:600;margin:22px 0 8px}
+.doc strong{font-weight:600}
+.doc ul,.doc ol{margin:0 0 14px;padding-left:24px}
+.doc li{margin-bottom:6px}
+.doc code{background:var(--bg-sub);border:1px solid var(--border);border-radius:3px;padding:1px 5px;font-size:13px;
+  font-family:"SFMono-Regular",Consolas,monospace;color:#172b4d}
+
+/* Confluence 宏：信息面板 */
+.panel{border-radius:3px;padding:12px 16px;margin:16px 0;font-size:14px;line-height:1.7}
+.panel.info{background:#deebff;border-left:4px solid #0052cc;color:#172b4d}
+.panel.note{background:#fffae6;border-left:4px solid #ffab00;color:#172b4d}
+.panel .t{font-weight:600;margin-bottom:4px;display:flex;align-items:center;gap:6px}
+
+/* 代码块宏 */
+.codeblock{border:1px solid var(--border);border-radius:3px;overflow:hidden;margin:16px 0;background:var(--bg-sub)}
+.codeblock .h{background:#ebecf0;border-bottom:1px solid var(--border);padding:6px 12px;font-size:12px;
+  color:var(--subtle);display:flex;gap:10px;align-items:center}
+.codeblock .h .lang{font-weight:600;color:#42526e}
+.codeblock .h .cp{margin-left:auto;cursor:pointer}
+.codeblock pre{margin:0;padding:12px 14px;overflow:auto;font-family:"SFMono-Regular",Consolas,monospace;
+  font-size:13px;line-height:1.65;color:#172b4d;background:#fff}
+.codeblock pre .cm{color:#8993a4;font-style:italic}
+.codeblock pre .kw{color:#8777d9;font-weight:600}
+.codeblock pre .num{color:#0052cc}
+
+/* 表格宏 */
+table{width:100%;border-collapse:collapse;margin:16px 0;font-size:13.5px}
+th,td{border:1px solid var(--border);padding:8px 12px;text-align:left;vertical-align:top}
+th{background:var(--bg-sub);font-weight:600;color:#42526e}
+td code{background:none;border:none;padding:0;color:#0052cc}
+
+/* 图片 */
+.figure{margin:18px 0}
+.figure .ph{height:170px;background:var(--bg-sub);border:1px solid var(--border);border-radius:3px;
+  display:flex;align-items:center;justify-content:center;color:#a5adba;font-size:12.5px}
+.figure .cap{font-size:12.5px;color:var(--subtle);margin-top:8px}
+
+/* 标签 */
+.labels{margin-top:28px;padding-top:16px;border-top:1px solid var(--border);display:flex;align-items:center;gap:8px;
+  flex-wrap:wrap;font-size:13px;color:var(--subtle)}
+.labels .lb{background:var(--bg-sub);border-radius:3px;padding:2px 8px;color:#42526e;font-size:12.5px}
+
+/* 底部操作 */
+.actions{display:flex;gap:10px;margin-top:22px;padding-top:18px;border-top:1px solid var(--border);align-items:center}
+.actions .btn{height:32px;padding:0 12px;border:1px solid var(--border);background:#fff;border-radius:3px;
+  font-size:13px;color:var(--text);display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-family:inherit}
+.actions .btn:hover{background:var(--bg-sub)}
+.actions .btn.pri{background:var(--primary);border-color:var(--primary);color:#fff}
+.actions .btn.pri:hover{background:#0747a6}
+
+/* 评论 */
+.comments{margin-top:28px}
+.comments h3{font-size:16px;font-weight:600;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.comments h3 span{font-size:13px;color:var(--subtle);font-weight:400}
+.cmt{display:flex;gap:10px;padding:14px 0;border-bottom:1px solid #f4f5f7}
+.cmt .a{width:32px;height:32px;border-radius:50%;flex:0 0 32px;color:#fff;font-size:12px;font-weight:600;
+  display:flex;align-items:center;justify-content:center}
+.cmt .c{flex:1}
+.cmt .c .h{font-size:13px;margin-bottom:4px}
+.cmt .c .h b{font-weight:600}
+.cmt .c .h span{color:var(--subtle);margin-left:8px}
+.cmt .c .t{font-size:14px;line-height:1.7}
+.cmt .c .f{font-size:12.5px;color:var(--subtle);margin-top:6px;display:flex;gap:14px}
+.cmt-form{display:flex;gap:10px;margin-top:16px}
+.cmt-form textarea{flex:1;height:70px;border:1px solid var(--border);border-radius:3px;padding:8px 10px;
+  font-size:13.5px;font-family:inherit;resize:vertical;outline:none;color:var(--text)}
+.cmt-form textarea:focus{border-color:#4c9aff;box-shadow:0 0 0 2px rgba(76,154,255,.2)}
+.cmt-form .r{display:flex;flex-direction:column;justify-content:flex-end;gap:8px}
+
+/* 侧栏 */
+.side-sec{margin-bottom:22px}
+.side-sec h4{font-size:11.5px;font-weight:700;color:var(--subtle);letter-spacing:.8px;text-transform:uppercase;
+  margin-bottom:8px}
+.toc a{display:block;font-size:13px;color:#42526e;padding:5px 0 5px 10px;border-left:2px solid transparent;line-height:1.5}
+.toc a:hover{color:var(--primary);text-decoration:none}
+.toc a.on{color:var(--primary);border-left-color:var(--primary);font-weight:500;background:#f4f8ff}
+.tree{font-size:13px;color:#42526e;line-height:2}
+.tree a{color:#42526e}
+.tree .ind{padding-left:16px;display:block}
+.tree .now{background:#deebff;border-radius:2px;font-weight:500;color:var(--primary);padding:2px 6px}
+.activity{font-size:12.5px;color:var(--subtle);line-height:1.8}
+.activity div{padding:6px 0;border-bottom:1px solid #f7f8f9}
+.activity b{color:#42526e;font-weight:500}
+
+/* 页脚 */
+.ft{border-top:1px solid var(--border);padding:18px 24px 40px;max-width:1240px;margin:0 auto;
+  font-size:12px;color:var(--subtle);display:flex;gap:16px;flex-wrap:wrap;align-items:center}
+.ft .r{margin-left:auto}
+</style>
+</head>
+<body>
+
+<header class="hd">
+  <a class="brand" href="#">
+    <span class="dot">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round">
+        <path d="M4 15c2.5-3.4 4.3-5 8-5s5.5 1.6 8 5"/><path d="M4 9c2.5 3.4 4.3 5 8 5s5.5-1.6 8-5" opacity=".65"/>
+      </svg>
+    </span>
+    Confluence
+  </a>
+  <a class="item" href="#">空间</a>
+  <a class="item" href="#">人员</a>
+  <a class="item" href="#">应用</a>
+  <a class="item create" href="#">创建</a>
+  <div class="srch">
+    <span class="ic">⌕</span>
+    <input type="text" placeholder="搜索" data-tf-slot="search">
+  </div>
+  <a class="item" href="#">通知</a>
+  <a class="item" href="#">帮助</a>
+  <div class="avatar">张</div>
+</header>
+
+<div class="announce">
+  <b>维护公告</b>
+  <span>本周六 22:00–24:00 为生产变更窗口，期间请勿提交线上紧急变更。</span>
+  <span class="x">×</span>
+</div>
+
+<div class="crumb">
+  <a href="#">空间</a><span class="sep">/</span>
+  <a href="#">工程效能</a><span class="sep">/</span>
+  <a href="#">架构笔记</a><span class="sep">/</span>
+  <span>缓存一致性排查手册（值班版）</span>
+</div>
+
+<div class="layout">
+  <main class="main">
+    <h1 class="ptitle" data-tf-slot="article-title">缓存一致性排查手册（值班版）</h1>
+
+    <div class="byline">
+      <div class="a">张</div>
+      <span><b>张伟</b> 创建于 2026-10-21</span>
+      <span class="dot">·</span>
+      <span>最后修改 <b>2 小时前</b></span>
+      <span class="dot">·</span>
+      <span>218 次浏览</span>
+      <div class="right">
+        <button class="btn">★ 关注</button>
+        <button class="btn on">编辑</button>
+      </div>
+    </div>
+
+    <div class="panel info">
+      <div class="t"><span style="width:16px;height:16px;border-radius:50%;background:#0052cc;color:#fff;font-size:11px;
+        display:inline-flex;align-items:center;justify-content:center;font-weight:700">i</span> 值班须知</div>
+      本页为一线排查手册，遇到疑似缓存一致性问题时按顺序执行，不要跳过第 2 步。
+    </div>
+
+    <article class="doc" data-tf-slot="body">
+      <p>线上出现"偶发数据不一致"时，第一反应通常是怀疑缓存没刷新、DB 主从延迟或者消息重复消费。但在多核环境下，有一类问题既不在缓存中间件，也不在数据库，而在<strong>程序自己的内存可见性</strong>上。</p>
+
+      <p>本文记录一次真实事故的排查路径与结论，供值班同学参考。</p>
+
+      <h2>一、现象与判断</h2>
+
+      <p>最典型的特征：单线程压测跑一万次都正确，上到多核机器后每小时出现几次错误，重启可暂时缓解，日志里没有任何异常堆栈。</p>
+
+      <div class="panel note">
+        <div class="t"><span style="width:16px;height:16px;border-radius:50%;background:#ffab00;color:#fff;font-size:11px;
+          display:inline-flex;align-items:center;justify-content:center;font-weight:700">!</span> 注意</div>
+        排查期间<strong>不要用打日志的方式验证</strong>。日志本身会引入内存屏障，问题会"消失"，现场被破坏后极难复现。
+      </div>
+
+      <p>下面这段代码是最小复现，几乎每一本讲并发的书都会引用：</p>
+
+      <div class="codeblock">
+        <div class="h"><span class="lang">cpp</span><span class="cp" style="margin-left:auto">复制</span></div>
+        <pre><span class="cm">// 生产者线程</span>
+data = <span class="num">42</span>;
+ready = <span class="num">1</span>;
+
+<span class="cm">// 消费者线程</span>
+<span class="kw">while</span> (!ready) { <span class="cm">/* spin */</span> }
+assert(data == <span class="num">42</span>);   <span class="cm">// 有可能失败</span></pre>
+      </div>
+
+      <p>关掉 <code>-O2</code>、加上 <code>volatile</code>，问题照旧。因为重排不只发生在编译器，也发生在 CPU 的乱序执行单元和缓存一致性协议之间。<code>volatile</code> 保证的是"不被优化掉"，不是"对其它核可见的顺序"。</p>
+
+      <div class="figure">
+        <div class="ph">store buffer / invalidate queue 示意图</div>
+        <div class="cap">图 4-3　写操作"看起来"立刻完成，但它还没落到缓存行</div>
+      </div>
+
+      <h2>二、快速对照表</h2>
+
+      <table>
+        <tr><th style="width:26%">现象</th><th style="width:34%">可能原因</th><th>验证方式</th></tr>
+        <tr><td>多核偶发、单核必现不了</td><td>store buffer 重排 / 缺少屏障</td><td>加 <code>std::atomic</code> release/acquire 后压测 72h</td></tr>
+        <tr><td>加日志后消失</td><td>日志引入了隐式屏障</td><td>改用不带 I/O 的断言与计数器</td></tr>
+        <tr><td>低负载正常、高负载劣化</td><td>伪共享（false sharing）</td><td><code>perf c2c</code> 看缓存行争用</td></tr>
+        <tr><td>读到的结构体字段只更新了一半</td><td>撕裂读（torn read）</td><td>整对象单次发布，或加锁</td></tr>
+      </table>
+
+      <h2>三、处置步骤</h2>
+
+      <ol>
+        <li>确认机型与并发度：单核能复现的，先怀疑逻辑 bug，不要往内存模型上带。</li>
+        <li>定位共享可变状态：把跨线程读写的字段全部列出来，标出哪一处是"发布标志位"。</li>
+        <li>建立 happens-before：发布用 release store，读取用 acquire load，不要用 <code>volatile</code> 凑。</li>
+        <li>压测 72 小时：低于这个时长不算验证通过。</li>
+      </ol>
+
+      <p>需要建立的直觉不是"记住 MESI 的四个状态"，而是：<strong>任何跨线程共享的可变状态，都必须显式地建立 happens-before 关系</strong>。编译器与硬件只对单线程负责，跨线程的顺序需要你自己付钱。</p>
+    </article>
+
+    <div class="labels">
+      <span>标签：</span>
+      <span class="lb">concurrency</span>
+      <span class="lb">memory-model</span>
+      <span class="lb">postmortem</span>
+      <span class="lb">值班手册</span>
+    </div>
+
+    <div class="actions">
+      <button class="btn">👍 赞 <span style="color:#6b778c">12</span></button>
+      <button class="btn">🔗 分享</button>
+      <button class="btn">＋ 创建 Jira 工单</button>
+      <button class="btn pri" style="margin-left:auto">编辑本页</button>
+    </div>
+
+    <div class="comments">
+      <h3>评论 <span>3</span></h3>
+      <div class="cmt">
+        <div class="a" style="background:linear-gradient(135deg,#57d9a3,#36b37e)">李</div>
+        <div class="c">
+          <div class="h"><b>李静</b><span>2 小时前</span></div>
+          <div class="t">第 2 步建议补一句：先确认是不是只有 ARM 机器出问题，x86 的 TSO 模型会掩盖掉一部分 store-store 重排。</div>
+          <div class="f"><span>回复</span><span>👍 3</span></div>
+        </div>
+      </div>
+      <div class="cmt">
+        <div class="a" style="background:linear-gradient(135deg,#ffab00,#ff8b00)">王</div>
+        <div class="c">
+          <div class="h"><b>王磊</b><span>昨天 18:20</span></div>
+          <div class="t">图 4-3 的原始 drawio 在附件里，需要的同学自取。</div>
+          <div class="f"><span>回复</span><span>👍 1</span></div>
+        </div>
+      </div>
+      <div class="cmt">
+        <div class="a" style="background:linear-gradient(135deg,#4c9aff,#0052cc)">陈</div>
+        <div class="c">
+          <div class="h"><b>陈默</b><span>10-22</span></div>
+          <div class="t">已按这份流程处理过一次线上告警，确实有效。建议把压测时长从 72h 改成 96h，我们上次 80 小时才复现。</div>
+          <div class="f"><span>回复</span><span>👍 6</span></div>
+        </div>
+      </div>
+
+      <div class="cmt-form">
+        <textarea placeholder="添加评论…"></textarea>
+        <div class="r"><button class="btn pri">保存</button></div>
+      </div>
+    </div>
+  </main>
+
+  <aside class="side">
+    <div class="side-sec">
+      <h4>本页目录</h4>
+      <div class="toc" data-tf-slot="toc">
+        <a href="#s1" class="on">一、现象与判断</a>
+        <a href="#s2">二、快速对照表</a>
+        <a href="#s3">三、处置步骤</a>
+      </div>
+    </div>
+
+    <div class="side-sec">
+      <h4>页面树</h4>
+      <div class="tree">
+        <a href="#">架构笔记</a>
+        <span class="ind"><a href="#">缓存一致性排查手册</a></span>
+        <span class="ind"><a href="#">消息队列重试规范</a></span>
+        <span class="ind"><a href="#">发布回滚 checklist</a></span>
+        <span class="ind"><a href="#">容量评估模板</a></span>
+      </div>
+    </div>
+
+    <div class="side-sec">
+      <h4>最近空间动态</h4>
+      <div class="activity">
+        <div><b>李静</b> 更新了「发布回滚 checklist」</div>
+        <div><b>王磊</b> 评论了本页</div>
+        <div><b>张伟</b> 创建了「容量评估模板」</div>
+        <div><b>系统</b> 归档了 3 个过期页面</div>
+      </div>
+    </div>
+  </aside>
+</div>
+
+<footer class="ft">
+  <span>Powered by Atlassian Confluence 8.5.4</span>
+  <span>·</span>
+  <span>Printed by Atlassian Confluence</span>
+  <span class="r">报告问题　·　Atlassian 新闻　·　许可协议</span>
+</footer>
+
+<script>
+(function () {
+  var links = document.querySelectorAll('.toc a');
+  var heads = [].map.call(links, function (a) { return document.querySelector(a.getAttribute('href')); });
+  function sync() {
+    var y = window.scrollY + 140, cur = 0;
+    heads.forEach(function (h, i) { if (h && h.offsetTop <= y) cur = i; });
+    links.forEach(function (a, i) { a.classList.toggle('on', i === cur); });
+  }
+  window.addEventListener('scroll', sync, { passive: true }); sync();
+})();
+</script>
+</body>
+</html>

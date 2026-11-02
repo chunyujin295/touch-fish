@@ -1,0 +1,14 @@
+/* 博客版式：正文白卡 + 右侧栏，最通用的一种 */
+body.ly-blog main{
+  background:#fff;border:1px solid var(--line);border-radius:var(--r);
+  padding:26px 30px 30px;
+}
+body.ly-blog .acts{margin-top:24px}
+body.ly-blog .cm{border:1px solid var(--line);background:#fff}
+body.ly-blog .pager{margin-top:22px}
+
+@media (max-width:900px){
+  body.ly-blog .grid{grid-template-columns:1fr}
+  body.ly-blog .side{position:static;flex-direction:row;flex-wrap:wrap}
+  body.ly-blog .side>*{flex:1 1 260px}
+}

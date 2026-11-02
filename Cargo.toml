@@ -1,0 +1,32 @@
+[package]
+name = "touchfish"
+version = "0.1.0"
+edition = "2021"
+description = "把本地电子书渲染成以假乱真的社区网页"
+default-run = "touchfish"
+
+[dependencies]
+axum = { version = "0.7", features = ["multipart"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "fs", "signal"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+anyhow = "1"
+zip = { version = "2", default-features = false, features = ["deflate"] }
+quick-xml = "0.36"
+sha2 = "0.10"
+encoding_rs = "0.8"
+chardetng = "0.1"
+include_dir = "0.7"
+wry = { version = "0.57.1", optional = true }
+tao = { version = "0.37.2", optional = true }
+
+[profile.release]
+lto = true
+codegen-units = 1
+strip = true
+opt-level = "s"
+
+[features]
+# 默认带桌面窗口；不需要 GUI 的场景（服务器、CI）用 --no-default-features 只编服务端
+default = ["gui"]
+gui = ["dep:wry", "dep:tao"]

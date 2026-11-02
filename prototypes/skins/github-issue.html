@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>[Question] 多核下断言偶发失败，是否与 store buffer 重排有关？ · Issue #1428 · acme/dist-systems</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='17' r='11' fill='%2324292f'/%3E%3Cpath d='M8 8l3 5-5 1z' fill='%2324292f'/%3E%3Cpath d='M24 8l-3 5 5 1z' fill='%2324292f'/%3E%3Ccircle cx='12' cy='16' r='1.8' fill='%23fff'/%3E%3Ccircle cx='20' cy='16' r='1.8' fill='%23fff'/%3E%3C/svg%3E">
+<style>
+:root{
+  --fg:#1f2328; --muted:#59636e; --border:#d1d9e0; --border-muted:#d8dee4;
+  --subtle:#f6f8fa; --accent:#0969da; --open:#1a7f37; --purple:#8250df; --danger:#cf222e;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans",Helvetica,Arial,sans-serif;
+  font-size:14px;line-height:1.5;color:var(--fg);background:#fff;-webkit-font-smoothing:antialiased;
+}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+svg{display:block}
+
+/* ================= 顶栏 ================= */
+.hd{background:#24292f;color:#fff;height:62px;display:flex;align-items:center;padding:0 16px;gap:16px}
+.hd .mark{width:32px;height:32px;flex:0 0 32px;display:flex;align-items:center;justify-content:center;border-radius:6px}
+.hd .mark:hover{background:rgba(255,255,255,.1)}
+.hd .search{flex:0 1 320px;height:30px;border:1px solid #57606a;border-radius:6px;display:flex;align-items:center;
+  padding:0 10px;gap:7px;color:#b1bac4;font-size:13px;background:transparent}
+.hd .search:hover{border-color:#8b949e}
+.hd .search span{flex:1;color:#b1bac4}
+.hd .search kbd{font-family:inherit;font-size:11px;border:1px solid #57606a;border-radius:3px;padding:0 4px;color:#8b949e}
+.hd nav{display:flex;gap:4px;margin-left:auto;align-items:center}
+.hd nav a{color:#fff;font-size:14px;padding:6px 8px;border-radius:6px;font-weight:500}
+.hd nav a:hover{background:rgba(255,255,255,.1);text-decoration:none}
+.hd .plus{width:32px;height:32px;border:1px solid #57606a;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#fff}
+.hd .avatar{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,#7d8590,#57606a);
+  display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:#fff;border:1px solid #57606a}
+
+/* ================= 仓库头 ================= */
+.repo-head{padding:16px 32px 0;max-width:1280px}
+.repo-head .row{display:flex;align-items:center;gap:8px;font-size:20px;flex-wrap:wrap}
+.repo-head .row .ico{color:var(--muted);margin-right:2px}
+.repo-head .row a{color:var(--accent)}
+.repo-head .row .slash{color:var(--muted);font-weight:300;margin:0 2px}
+.repo-head .row b a{font-weight:600}
+.pill{font-size:12px;color:var(--muted);border:1px solid var(--border);border-radius:2em;padding:1px 7px;
+  font-weight:500;line-height:18px;margin-left:4px}
+.repo-actions{margin-left:auto;display:flex;gap:8px;align-items:center}
+.btn{height:28px;padding:0 12px;font-size:12px;font-weight:500;border:1px solid rgba(31,35,40,.15);
+  border-radius:6px;background:#f6f8fa;color:var(--fg);display:inline-flex;align-items:center;gap:5px;cursor:pointer;
+  font-family:inherit;box-shadow:0 1px 0 rgba(31,35,40,.04)}
+.btn:hover{background:#f3f4f6;border-color:rgba(31,35,40,.25)}
+.btn .cnt{background:rgba(31,35,40,.08);border-radius:2em;padding:0 5px;font-size:11px;margin-left:2px}
+.btn.pri{background:#1f883d;border-color:rgba(31,35,40,.15);color:#fff}
+.btn.pri:hover{background:#1a7f37}
+
+/* tabs */
+.tabs{display:flex;gap:8px;margin-top:16px;border-bottom:1px solid var(--border);padding:0 32px;max-width:1280px;overflow:hidden}
+.tabs a{display:flex;align-items:center;gap:6px;padding:8px 8px 12px;font-size:14px;color:var(--fg);
+  border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap}
+.tabs a:hover{text-decoration:none;border-bottom-color:var(--border);border-radius:6px 6px 0 0;background:var(--subtle)}
+.tabs a.on{font-weight:600;border-bottom-color:#fd8c73}
+.tabs a .cnt{background:rgba(31,35,40,.08);border-radius:2em;font-size:12px;padding:0 6px;font-weight:500}
+
+/* ================= 主体 ================= */
+.layout{max-width:1280px;padding:24px 32px 40px;display:flex;gap:24px;align-items:flex-start}
+.col-main{flex:1;min-width:0}
+.col-side{width:296px;flex:0 0 296px}
+
+/* issue 标题区 */
+.issue-title{font-size:32px;font-weight:600;line-height:1.25;letter-spacing:-.4px;margin-bottom:8px}
+.issue-title .num{color:var(--muted);font-weight:300}
+.issue-sub{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:14px;color:var(--muted);padding-bottom:16px;border-bottom:1px solid var(--border)}
+.state{display:inline-flex;align-items:center;gap:4px;background:#1f883d;color:#fff;font-size:14px;
+  font-weight:500;border-radius:2em;padding:5px 12px 5px 10px}
+.issue-sub .who b{color:var(--fg);font-weight:600}
+.issue-sub .who{color:var(--muted)}
+
+/* 时间线 */
+.timeline{margin-top:24px;position:relative}
+.tl-item{position:relative;padding-left:0;margin-bottom:20px}
+.row{display:flex;gap:16px;align-items:flex-start}
+.av{width:40px;height:40px;border-radius:50%;flex:0 0 40px;color:#fff;font-size:14px;font-weight:600;
+  display:flex;align-items:center;justify-content:center}
+.box{flex:1;min-width:0;border:1px solid var(--border);border-radius:6px;overflow:hidden;background:#fff}
+.box-h{background:var(--subtle);border-bottom:1px solid var(--border);padding:8px 16px;display:flex;align-items:center;gap:6px;
+  font-size:13px;color:var(--muted);flex-wrap:wrap}
+.box-h b{color:var(--fg);font-weight:600}
+.box-h .author{font-size:11px;border:1px solid var(--border);border-radius:2em;padding:0 6px;color:var(--muted);background:#fff}
+.box-h .right{margin-left:auto;display:flex;gap:6px;color:var(--muted);font-size:12px}
+.box-b{padding:16px;font-size:14px;line-height:1.6}
+
+/* markdown 正文 */
+.md{font-size:15px;line-height:1.65;color:var(--fg);word-wrap:break-word}
+.md p{margin:0 0 16px}
+.md p:last-child{margin-bottom:0}
+.md h2{font-size:1.45em;font-weight:600;margin:24px 0 14px;padding-bottom:.3em;border-bottom:1px solid var(--border-muted)}
+.md h3{font-size:1.2em;font-weight:600;margin:20px 0 12px}
+.md ul,.md ol{margin:0 0 16px;padding-left:2em}
+.md li{margin-bottom:4px}
+.md blockquote{margin:0 0 16px;padding:0 1em;color:var(--muted);border-left:.25em solid var(--border)}
+.md code{background:rgba(175,184,193,.2);padding:.2em .4em;border-radius:6px;font-size:85%;
+  font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace}
+.md pre{background:var(--subtle);border-radius:6px;padding:16px;overflow:auto;margin:0 0 16px;font-size:13px;line-height:1.45}
+.md pre code{background:none;padding:0;font-size:100%}
+.md .str{color:#0a3069}.md .kw{color:#cf222e}.md .cm{color:#6e7781}.md .fn{color:#8250df}.md .ty{color:#953800}
+.md hr{border:none;border-top:1px solid var(--border-muted);margin:24px 0}
+.md table{border-collapse:collapse;margin:0 0 16px;font-size:14px}
+.md th,.md td{border:1px solid var(--border);padding:6px 13px}
+.md th{background:var(--subtle);font-weight:600}
+
+/* 反应 */
+.reactions{display:flex;gap:6px;padding:0 16px 12px;flex-wrap:wrap}
+.reaction{border:1px solid var(--border);background:#fff;border-radius:2em;font-size:12px;padding:2px 9px;
+  display:flex;align-items:center;gap:5px;color:var(--muted);cursor:pointer;font-family:inherit}
+.reaction:hover{border-color:var(--accent);color:var(--accent)}
+.reaction.on{border-color:var(--accent);background:#ddf4ff;color:#0969da}
+
+/* 事件行 */
+.event{display:flex;gap:14px;align-items:center;font-size:13px;color:var(--muted);padding:6px 0 6px 4px;margin-bottom:16px}
+.event .dot{width:24px;height:24px;border-radius:50%;background:var(--subtle);border:1px solid var(--border);
+  display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:11px;margin-left:8px}
+.event a{color:var(--fg);font-weight:500}
+.label-chip{font-size:11px;border-radius:2em;padding:0 8px;border:1px solid;line-height:18px;font-weight:500}
+
+/* 评论框 */
+.composer{margin-top:8px}
+.composer .box{overflow:visible}
+.tabs2{display:flex;gap:2px;padding:8px 8px 0;background:var(--subtle);border-bottom:1px solid var(--border);border-radius:6px 6px 0 0}
+.tabs2 .t{font-size:13px;padding:5px 10px;border:1px solid transparent;border-radius:6px 6px 0 0;color:var(--muted);cursor:pointer}
+.tabs2 .t.on{background:#fff;border-color:var(--border);border-bottom-color:#fff;color:var(--fg);margin-bottom:-1px;font-weight:500}
+.ta{border:none;width:100%;min-height:88px;padding:10px 12px;font-family:inherit;font-size:14px;resize:vertical;outline:none;
+  border-bottom:1px solid var(--border);color:var(--fg)}
+.ta::placeholder{color:var(--muted)}
+.composer-f{padding:8px 10px;display:flex;gap:8px;align-items:center;background:#fff;border-radius:0 0 6px 6px}
+.composer-f .hint{font-size:12px;color:var(--muted);margin-right:auto}
+.icon-btn{width:28px;height:28px;border:1px solid rgba(31,35,40,.15);border-radius:6px;background:#f6f8fa;
+  display:flex;align-items:center;justify-content:center;color:var(--muted);cursor:pointer}
+
+/* ================= 侧栏 ================= */
+.side-sec{padding-bottom:16px;margin-bottom:16px;border-bottom:1px solid var(--border-muted)}
+.side-sec h4{font-size:12px;font-weight:600;color:var(--muted);margin-bottom:8px;display:flex;align-items:center;justify-content:space-between}
+.side-sec h4 a{font-weight:400;color:var(--accent);font-size:12px}
+.labels{display:flex;flex-wrap:wrap;gap:6px}
+.side-sec .assignee{display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:6px}
+.side-sec .assignee .av{width:20px;height:20px;flex:0 0 20px;font-size:9px}
+.side-sec .mile{font-size:13px;display:flex;align-items:center;gap:8px;color:var(--fg)}
+.progress{height:6px;background:#eaeef2;border-radius:3px;overflow:hidden;margin-top:8px}
+.progress i{display:block;height:100%;width:62%;background:#1f883d}
+.side-sec .meta{font-size:12px;color:var(--muted);margin-top:8px}
+.participants{display:flex;flex-wrap:wrap;gap:4px}
+.participants .av{width:26px;height:26px;flex:0 0 26px;font-size:10px;border:1px solid #fff;box-shadow:0 0 0 1px var(--border)}
+.tip{background:var(--subtle);border:1px solid var(--border);border-radius:6px;padding:12px 14px;font-size:12.5px;
+  color:var(--muted);line-height:1.6}
+.tip b{color:var(--fg);display:block;margin-bottom:4px;font-size:12px}
+.botline{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--muted);padding:10px 0}
+.botline .tag{background:#ddf4ff;color:#0969da;border-radius:2em;font-size:11px;padding:0 6px;border:1px solid #b6e3ff}
+
+/* 页脚 */
+.ft{border-top:1px solid var(--border);max-width:1280px;margin:0 auto;padding:24px 32px 60px;
+  display:flex;gap:16px;font-size:12px;color:var(--muted);flex-wrap:wrap;align-items:center}
+.ft .octo{width:24px;height:24px;opacity:.55}
+.ft .links{display:flex;gap:16px;flex-wrap:wrap}
+.ft .links a{color:var(--accent)}
+</style>
+</head>
+<body>
+
+<!-- ================= 顶栏 ================= -->
+<header class="hd">
+  <a class="mark" href="#" title="Home">
+    <svg width="26" height="26" viewBox="0 0 32 32" fill="#fff">
+      <circle cx="16" cy="17" r="10.5"/>
+      <path d="M9 9.5l2.6 4.4-4.6 1z"/>
+      <path d="M23 9.5l-2.6 4.4 4.6 1z"/>
+      <ellipse cx="12.3" cy="16.5" rx="1.7" ry="1.9" fill="#24292f"/>
+      <ellipse cx="19.7" cy="16.5" rx="1.7" ry="1.9" fill="#24292f"/>
+      <ellipse cx="16" cy="21.5" rx="1.1" ry=".8" fill="#24292f"/>
+    </svg>
+  </a>
+  <div class="search"><span>Type / to search</span><kbd>/</kbd></div>
+  <nav>
+    <a href="#">Pull requests</a>
+    <a href="#">Issues</a>
+    <a href="#">Marketplace</a>
+    <a href="#">Explore</a>
+    <a href="#" class="plus" title="Create new">+</a>
+    <div class="avatar">陈</div>
+  </nav>
+</header>
+
+<!-- ================= 仓库头 ================= -->
+<div class="repo-head">
+  <div class="row">
+    <svg class="ico" width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M2 2.5A2.5 2.5 0 014.5 0h8.75a.75.75 0 01.75.75v12.5a.75.75 0 01-.75.75h-2.5a.75.75 0 010-1.5h1.75v-2h-8a1 1 0 00-.714 1.7.75.75 0 01-1.072 1.05A2.495 2.495 0 012 11.5zm10.5-1h-8a1 1 0 00-1 1v6.708A2.486 2.486 0 014.5 9h8zM5 12.25a.25.25 0 01.25-.25h3.5a.25.25 0 01.25.25v3.25a.25.25 0 01-.4.2l-1.45-1.087a.25.25 0 00-.3 0L5.4 15.7a.25.25 0 01-.4-.2z"/></svg>
+    <a href="#">acme</a><span class="slash">/</span><b><a href="#">dist-systems</a></b>
+    <span class="pill">Public</span>
+    <div class="repo-actions">
+      <button class="btn">Watch <span class="cnt">128</span></button>
+      <button class="btn">Fork <span class="cnt">342</span></button>
+      <button class="btn">Star <span class="cnt">2.1k</span></button>
+    </div>
+  </div>
+</div>
+
+<div class="tabs">
+  <a href="#">Code</a>
+  <a href="#">Issues <span class="cnt">152</span></a>
+  <a href="#">Pull requests <span class="cnt">18</span></a>
+  <a href="#">Actions</a>
+  <a href="#">Projects</a>
+  <a href="#">Wiki</a>
+  <a href="#">Security</a>
+  <a href="#">Insights</a>
+</div>
+
+<!-- ================= 主体 ================= -->
+<div class="layout">
+  <div class="col-main">
+
+    <h1 class="issue-title">[Question] 多核下断言偶发失败，是否与 store buffer 重排有关？ <span class="num">#1428</span></h1>
+
+    <div class="issue-sub">
+      <span class="state">
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M11.28 6.78a.75.75 0 00-1.06-1.06L7.25 8.69 5.78 7.22a.75.75 0 00-1.06 1.06l2 2a.75.75 0 001.06 0z"/><path d="M16 8A8 8 0 110 8a8 8 0 0116 0zm-1.5 0a6.5 6.5 0 10-13 0 6.5 6.5 0 0013 0z"/></svg>
+        Open
+      </span>
+      <span class="who"><b>alex-chen</b> opened this issue on Oct 31 · 12 comments</span>
+    </div>
+
+    <div class="timeline">
+      <!-- 事件：加标签 -->
+      <div class="event">
+        <div class="dot">🏷</div>
+        <span><a href="#">alex-chen</a> added
+          <span class="label-chip" style="color:#8250df;border-color:#d8b9ff;background:#fbefff">question</span>
+          <span class="label-chip" style="color:#cf222e;border-color:#ffcecb;background:#ffebe9">concurrency</span>
+          on Oct 31
+        </span>
+      </div>
+
+      <!-- 主帖 -->
+      <div class="tl-item">
+        <div class="row">
+          <div class="av" style="background:linear-gradient(135deg,#6e7bff,#4051d6)">陈</div>
+          <div class="box">
+            <div class="box-h"><b>alex-chen</b><span class="author">Author</span> commented on Oct 31
+              <div class="right">
+                <span>···</span>
+              </div>
+            </div>
+            <div class="box-b md" data-tf-slot="body">
+              <p>先说明一下环境：4 核 x86_64，内核 6.1，用 <code>-O2</code> 编译。下面这段代码在单线程压测里跑一万次都正确，但部署到多核机器之后大约每周崩一次，<code>assert</code> 失败，core dump 里 <code>data</code> 恰好是 0。</p>
+
+              <pre><code><span class="cm">// producer</span>
+data = <span class="ty">42</span>;
+ready = <span class="ty">1</span>;
+
+<span class="cm">// consumer</span>
+<span class="kw">while</span> (!ready) { <span class="cm">/* spin */</span> }
+<span class="fn">assert</span>(data == <span class="ty">42</span>);   <span class="cm">// fails sometimes</span></code></pre>
+
+              <p>我最初判断是编译器优化掉了读操作，于是把 <code>volatile</code> 加上，还在两个线程之间插了 <code>printf</code>。结果很奇怪：<strong>加了日志之后，问题就消失了</strong>，去掉日志一周后必然重现。</p>
+
+              <p>问题：这到底是编译器重排，还是 CPU 层面的 store buffer 导致的可见性问题？如果是后者，为什么 <code>volatile</code> 不管用？</p>
+            </div>
+            <div class="reactions">
+              <div class="reaction on">👍 4</div>
+              <div class="reaction">🎉 1</div>
+              <div class="reaction">👀 6</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 维护者回复 -->
+      <div class="tl-item">
+        <div class="row">
+          <div class="av" style="background:linear-gradient(135deg,#5ec4a8,#2f855a)">M</div>
+          <div class="box">
+            <div class="box-h"><b>mira-okonkwo</b><span class="author" style="color:#1a7f37;border-color:#aceebb;background:#dafbe1">Maintainer</span> commented on Oct 31
+              <div class="right"><span>···</span></div>
+            </div>
+            <div class="box-b md">
+              <p>是后者，而且两者都有。分两层说。</p>
+
+              <h2>1. 顺序是局部共识</h2>
+              <p>每个核都以为自己看到了正确的顺序，但不同核看到的顺序可以互不相同。硬件做了两件互相关联的事：每个核有自己的 store buffer 与 invalidate queue；并且允许在不破坏<strong>单线程语义</strong>的前提下重排指令。</p>
+
+              <blockquote>一个只在单线程下验证过的程序，它对"正确"的证明只覆盖了所有可能交错中的一小部分。</blockquote>
+
+              <p>在你的例子里，生产者的 <code>ready = 1</code> 可能先于 <code>data = 42</code> 对其他核可见——写操作进了 store buffer 就"看起来完成了"，但还没落到缓存行。</p>
+
+              <h2>2. 为什么 volatile 不管用</h2>
+              <ul>
+                <li><code>volatile</code> 保证的是"不被优化掉、每次都真的读写"，<strong>不是</strong>"对其他核的可见顺序"；</li>
+                <li><code>printf</code> 恰好起到了屏障作用（内部有锁/系统调用），所以现象"被治好"了——这是最迷惑人的地方；</li>
+                <li>正确的做法是用 <code>std::atomic</code> 的 release/acquire，把数据写入与标志位发布串起来。</li>
+              </ul>
+
+              <pre><code>std::atomic&lt;<span class="kw">bool</span>&gt; ready{<span class="kw">false</span>};
+
+<span class="cm">// producer</span>
+data = <span class="ty">42</span>;
+ready.store(<span class="kw">true</span>, std::memory_order_release);
+
+<span class="cm">// consumer</span>
+<span class="kw">while</span> (!ready.load(std::memory_order_acquire)) {}
+<span class="fn">assert</span>(data == <span class="ty">42</span>);   <span class="cm">// now guaranteed</span></code></pre>
+
+              <p>顺带一提，你这句"每周崩一次"的描述很典型：它不是偶发，是必然，只是在等一个足够坏的时序。</p>
+            </div>
+            <div class="reactions">
+              <div class="reaction on">👍 23</div>
+              <div class="reaction">❤️ 6</div>
+              <div class="reaction">🚀 2</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 事件：self-assigned -->
+      <div class="event">
+        <div class="dot">✓</div>
+        <span><a href="#">mira-okonkwo</a> self-assigned this on Oct 31</span>
+      </div>
+
+      <!-- 围观者 -->
+      <div class="tl-item">
+        <div class="row">
+          <div class="av" style="background:linear-gradient(135deg,#ff9a76,#e8590c)">K</div>
+          <div class="box">
+            <div class="box-h"><b>kernel-panic-42</b> commented 2 days ago
+              <div class="right"><span>···</span></div>
+            </div>
+            <div class="box-b md">
+              <p>补充一个我们线上踩过的坑：这类 bug 还有一个特征是<strong>加日志即消失</strong>，因为日志本身引入了屏障，时序被"治好"了。所以排查时千万别用打日志的方式验证，你会把现场毁掉。</p>
+              <p>后来我们的规范是：任何跨线程共享的可变状态，必须显式建立 happens-before 关系，Review 时看到 <code>if (flag)</code> 去读另一份数据就拦下来。</p>
+            </div>
+            <div class="reactions">
+              <div class="reaction">👍 11</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- bot 评论 -->
+      <div class="tl-item">
+        <div class="row">
+          <div class="av" style="background:#24292f;font-size:10px">CI</div>
+          <div class="box">
+            <div class="box-h"><b>ci-bench-bot</b><span class="author" style="color:#0969da;border-color:#b6e3ff;background:#ddf4ff">bot</span> commented 2 days ago
+              <div class="right"><span>···</span></div>
+            </div>
+            <div class="box-b md">
+              <p>Benchmark run <code>#4821</code> completed for <code>a1b9f2c</code>.</p>
+              <table>
+                <tr><th>case</th><th>before</th><th>after</th><th>Δ</th></tr>
+                <tr><td>throughput/4t</td><td>1.84 M ops/s</td><td>1.86 M ops/s</td><td>+1.1%</td></tr>
+                <tr><td>p99 latency</td><td>412 µs</td><td>408 µs</td><td>−1.0%</td></tr>
+              </table>
+              <p style="font-size:12px;color:#59636e">This comment was generated automatically. Do not reply.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 楼主回复 -->
+      <div class="tl-item">
+        <div class="row">
+          <div class="av" style="background:linear-gradient(135deg,#6e7bff,#4051d6)">陈</div>
+          <div class="box">
+            <div class="box-h"><b>alex-chen</b><span class="author">Author</span> commented yesterday
+              <div class="right"><span>···</span><span style="font-size:11px">edited</span></div>
+            </div>
+            <div class="box-b md">
+              <p>换成 <code>atomic</code> + release/acquire 之后，压测 72 小时没有再复现。谢谢！</p>
+              <p>不过还有一个后续问题：如果 <code>data</code> 是一个结构体，只要我把每个字段都做成 atomic，是不是就不用关心顺序了？还是说仍然需要外层的一次发布动作？</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 评论框 -->
+      <div class="composer">
+        <div class="row">
+          <div class="av" style="background:linear-gradient(135deg,#7d8590,#57606a)">陈</div>
+          <div class="box">
+            <div class="tabs2"><div class="t on">Write</div><div class="t">Preview</div></div>
+            <textarea class="ta" placeholder="Leave a comment"></textarea>
+            <div class="composer-f">
+              <div class="icon-btn">B</div><div class="icon-btn">@</div><div class="icon-btn">&lt;/&gt;</div>
+              <span class="hint">Markdown is supported</span>
+              <button class="btn">Close with comment</button>
+              <button class="btn pri">Comment</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= 侧栏 ================= -->
+  <aside class="col-side">
+    <div class="side-sec">
+      <h4>Labels <a href="#">Edit</a></h4>
+      <div class="labels">
+        <span class="label-chip" style="color:#8250df;border-color:#d8b9ff;background:#fbefff">question</span>
+        <span class="label-chip" style="color:#cf222e;border-color:#ffcecb;background:#ffebe9">concurrency</span>
+        <span class="label-chip" style="color:#9a6700;border-color:#f5e6a3;background:#fff8c5">needs-repro</span>
+      </div>
+    </div>
+
+    <div class="side-sec">
+      <h4>Assignees</h4>
+      <div class="assignee"><div class="av" style="background:linear-gradient(135deg,#5ec4a8,#2f855a)">M</div> mira-okonkwo</div>
+    </div>
+
+    <div class="side-sec">
+      <h4>Milestone</h4>
+      <div class="mile">◈ v2.4 · memory-model</div>
+      <div class="progress"><i></i></div>
+      <div class="meta">62% complete · due Nov 30</div>
+    </div>
+
+    <div class="side-sec">
+      <h4>Participants</h4>
+      <div class="participants">
+        <div class="av" style="background:linear-gradient(135deg,#6e7bff,#4051d6)">陈</div>
+        <div class="av" style="background:linear-gradient(135deg,#5ec4a8,#2f855a)">M</div>
+        <div class="av" style="background:linear-gradient(135deg,#ff9a76,#e8590c)">K</div>
+        <div class="av" style="background:#24292f;font-size:9px">CI</div>
+        <div class="av" style="background:linear-gradient(135deg,#a78bfa,#6d28d9)">L</div>
+      </div>
+    </div>
+
+    <div class="side-sec" style="border-bottom:none">
+      <div class="tip">
+        <b>ProTip</b>
+        在 issue 里输入 <code>#</code> 可以引用其它 issue 或 PR，按 <code>Ctrl+Enter</code> 直接提交。
+      </div>
+    </div>
+
+    <div class="side-sec" style="border-bottom:none">
+      <div class="botline"><span class="tag">Auto</span> 3 个关联 PR 正在等待 review</div>
+    </div>
+  </aside>
+</div>
+
+<footer class="ft">
+  <svg class="octo" viewBox="0 0 32 32"><circle cx="16" cy="17" r="11" fill="#8b949e"/><ellipse cx="12" cy="16" rx="1.6" ry="1.8" fill="#fff"/><ellipse cx="20" cy="16" rx="1.6" ry="1.8" fill="#fff"/></svg>
+  <span>© 2026 GitHub, Inc.</span>
+  <div class="links"><a href="#">Terms</a><a href="#">Privacy</a><a href="#">Security</a><a href="#">Status</a><a href="#">Docs</a><a href="#">Contact</a></div>
+</footer>
+
+</body>
+</html>
