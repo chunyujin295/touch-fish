@@ -22,6 +22,16 @@ pub struct Settings {
     /// 窗口失焦时暂停阅读量自增
     #[serde(default = "yes")]
     pub pause_on_blur: bool,
+    /// 全局唤出热键，形如 "ctrl+alt+f"；留空表示不注册
+    #[serde(default = "default_hotkey")]
+    pub hotkey: String,
+    /// 是否显示通知区托盘图标
+    #[serde(default = "yes")]
+    pub tray: bool,
+}
+
+fn default_hotkey() -> String {
+    "ctrl+alt+f".into()
 }
 
 fn yes() -> bool {
@@ -36,6 +46,8 @@ impl Default for Settings {
             default_pack: "cs".into(),
             boss_url: String::new(),
             pause_on_blur: true,
+            hotkey: default_hotkey(),
+            tray: true,
         }
     }
 }

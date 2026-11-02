@@ -235,6 +235,8 @@ function renderSettings() {
   $("#setPack").value = s.default_pack || "cs";
   $("#setBoss").value = s.boss_url || "";
   $("#setBlur").checked = s.pause_on_blur !== false;
+  $("#setHotkey").value = s.hotkey || "ctrl+alt+f";
+  $("#setTray").checked = s.tray !== false;
   $("#setPort").value = s.port || 7317;
 }
 
@@ -244,6 +246,8 @@ async function saveSettings() {
     default_pack: $("#setPack").value,
     boss_url: $("#setBoss").value,
     pause_on_blur: $("#setBlur").checked,
+    hotkey: $("#setHotkey").value.trim() || "ctrl+alt+f",
+    tray: $("#setTray").checked,
     port: Number($("#setPort").value) || 7317,
   };
   try {

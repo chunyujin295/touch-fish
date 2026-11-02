@@ -23,8 +23,110 @@ use tray_icon::menu::{Menu, MenuEvent, MenuItem};
 use tray_icon::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use wry::{WebContext, WebViewBuilder};
 
-/// 唤出 / 收起的全局热键：Ctrl+Alt+F（F = Fish）
-const HOTKEY_TEXT: &str = "Ctrl+Alt+F";
+/// 唤出 / 收起的全局热键，默认 Ctrl+Alt+F（F = Fish），可在设置里改
+pub const DEFAULT_HOTKEY: &str = "ctrl+alt+f";
+
+/// 给设置接口用的校验：写得对就能解析出修饰键 + 主键
+pub fn hotkey_ok(spec: &str) -> bool {
+    parse_hotkey(spec).is_some()
+}
+
+/// 把 "ctrl+alt+f" 这样的写法解析成 (修饰键, 主键)。
+/// 键名走 keyboard-types 的 `Code::from_str`，所以 "Backquote" "F1" "Space" 这些也能直接用。
+fn parse_hotkey(spec: &str) -> Option<(Modifiers, Code)> {
+    let mut mods = Modifiers::empty();
+    let mut key: Option<Code> = None;
+    let parts: Vec<String> = spec
+        .split(['+', '-'])
+        .map(|p| p.trim().to_lowercase())
+        .filter(|p| !p.is_empty())
+        .collect();
+    if parts.is_empty() {
+        return None;
+    }
+    for p in parts {
+        match p.as_str() {
+            "ctrl" | "control" => mods |= Modifiers::CONTROL,
+            "alt" | "option" | "opt" => mods |= Modifiers::ALT,
+            "shift" => mods |= Modifiers::SHIFT,
+            "win" | "super" | "meta" | "cmd" | "command" => mods |= Modifiers::META,
+            other => key = key_code(other),
+        }
+    }
+    // 只按修饰键没有意义，必须有一个主键
+    key.map(|k| (mods, k))
+}
+
+fn key_code(t: &str) -> Option<Code> {
+    let name = match t {
+        "space" | "spacebar" => "Space".to_string(),
+        "enter" | "return" => "Enter".to_string(),
+        "tab" => "Tab".to_string(),
+        "esc" | "escape" => "Escape".to_string(),
+        "up" => "ArrowUp".to_string(),
+        "down" => "ArrowDown".to_string(),
+        "left" => "ArrowLeft".to_string(),
+        "right" => "ArrowRight".to_string(),
+        "backquote" | "`" | "~" => "Backquote".to_string(),
+        "minus" | "-" => "Minus".to_string(),
+        "equal" | "=" => "Equal".to_string(),
+        "comma" | "," => "Comma".to_string(),
+        "period" | "." => "Period".to_string(),
+        "slash" | "/" => "Slash".to_string(),
+        "semicolon" | ";" => "Semicolon".to_string(),
+        "quote" | "'" => "Quote".to_string(),
+        "backslash" | "\\" => "Backslash".to_string(),
+        "bracketleft" | "[" => "BracketLeft".to_string(),
+        "bracketright" | "]" => "BracketRight".to_string(),
+        _ => {
+            let mut cs = t.chars();
+            let (c, single) = match (cs.next(), cs.next()) {
+                (Some(c), None) => (c, true),
+                _ => ('\0', false),
+            };
+            if single && c.is_ascii_alphabetic() {
+                format!("Key{}", c.to_ascii_uppercase())
+            } else if single && c.is_ascii_digit() {
+                format!("Digit{c}")
+            } else if t.starts_with('f') && t[1..].parse::<u8>().is_ok() {
+                format!("F{}", &t[1..])
+            } else {
+                t.to_string()
+            }
+        }
+    };
+    name.parse::<Code>().ok()
+}
+
+/// 给界面和托盘看的人类可读写法：ctrl+alt+f → Ctrl+Alt+F
+fn hotkey_label(spec: &str) -> String {
+    spec.split(['+', '-'])
+        .filter(|p| !p.trim().is_empty())
+        .map(|p| {
+            let p = p.trim().to_lowercase();
+            match p.as_str() {
+                "ctrl" | "control" => "Ctrl".to_string(),
+                "alt" | "option" => "Alt".to_string(),
+                "shift" => "Shift".to_string(),
+                "win" | "super" | "meta" | "cmd" => "Win".to_string(),
+                "space" => "Space".to_string(),
+                other => {
+                    let mut it = other.chars();
+                    match it.next() {
+                        Some(ch) if it.next().is_none() => ch.to_uppercase().collect(),
+                        Some(ch) => {
+                            let mut s: String = ch.to_uppercase().collect();
+                            s.push_str(&other[ch.len_utf8()..]);
+                            s
+                        }
+                        None => other.to_string(),
+                    }
+                }
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("+")
+}
 
 /// 跨线程把事件丢回主线程：WebView 回调、托盘、热键都不在 UI 线程上
 pub enum UserEvent {
@@ -126,16 +228,26 @@ fn env_flag(name: &str, default: bool) -> bool {
 }
 
 /// 托盘图标：左键切换、右键菜单。
-/// 换来的好处是"忘了热键也能找回来"，代价是通知区多一个图标——可以用 TOUCHFISH_TRAY=0 关掉。
-fn build_tray(proxy: EventLoopProxy<UserEvent>) -> Option<tray_icon::TrayIcon> {
+/// 换来的好处是"忘了热键也能找回来"，代价是通知区多一个图标——设置里可以关掉。
+fn build_tray(proxy: EventLoopProxy<UserEvent>, label: &str) -> Option<tray_icon::TrayIcon> {
     let menu = Menu::new();
-    let toggle = MenuItem::with_id("toggle", format!("显示 / 收起  ({HOTKEY_TEXT})"), true, None);
+    let caption = if label.is_empty() {
+        "显示 / 收起".to_string()
+    } else {
+        format!("显示 / 收起  ({label})")
+    };
+    let toggle = MenuItem::with_id("toggle", caption, true, None);
     let quit = MenuItem::with_id("quit", "退出", true, None);
     menu.append_items(&[&toggle, &quit]).ok()?;
 
+    let tip = if label.is_empty() {
+        "TouchFish".to_string()
+    } else {
+        format!("TouchFish · {label}")
+    };
     let tray = TrayIconBuilder::new()
         .with_menu(Box::new(menu))
-        .with_tooltip(format!("TouchFish · {HOTKEY_TEXT}"))
+        .with_tooltip(tip)
         .with_icon(tray_icon::Icon::from_rgba(ICON_RGBA.to_vec(), ICON_SIZE, ICON_SIZE).ok()?)
         .build()
         .ok()?;
@@ -172,10 +284,10 @@ fn build_tray(proxy: EventLoopProxy<UserEvent>) -> Option<tray_icon::TrayIcon> {
 
 /// 注册全局热键。注册失败（被别的软件占了）时返回 None，
 /// 调用方据此把 Boss Key 退回"直接退出"，免得窗口收起来之后再也叫不出来。
-fn build_hotkey(proxy: EventLoopProxy<UserEvent>) -> Option<GlobalHotKeyManager> {
+fn build_hotkey(proxy: EventLoopProxy<UserEvent>, spec: &str) -> Option<GlobalHotKeyManager> {
+    let (mods, code) = parse_hotkey(spec)?;
     let manager = GlobalHotKeyManager::new().ok()?;
-    let hk = HotKey::new(Some(Modifiers::CONTROL | Modifiers::ALT), Code::KeyF);
-    if manager.register(hk).is_err() {
+    if manager.register(HotKey::new(Some(mods), code)).is_err() {
         return None;
     }
     GlobalHotKeyEvent::set_event_handler(Some(move |e: GlobalHotKeyEvent| {
@@ -187,7 +299,13 @@ fn build_hotkey(proxy: EventLoopProxy<UserEvent>) -> Option<GlobalHotKeyManager>
 }
 
 /// 起窗口并阻塞在主线程。`url` 是已经就绪的本地地址。
-pub fn run(url: &str, webview_dir: PathBuf, state_path: PathBuf) -> Result<()> {
+pub fn run(
+    url: &str,
+    webview_dir: PathBuf,
+    state_path: PathBuf,
+    hotkey_spec: String,
+    tray_on: bool,
+) -> Result<()> {
     let st = load_state(&state_path);
 
     let event_loop = EventLoopBuilder::<UserEvent>::with_user_event().build();
@@ -209,25 +327,39 @@ pub fn run(url: &str, webview_dir: PathBuf, state_path: PathBuf) -> Result<()> {
     std::fs::create_dir_all(&webview_dir).ok();
     let mut ctx = WebContext::new(Some(webview_dir));
 
+    // 环境变量仍可临时覆盖（调试用），否则以设置为准
+    let spec = if hotkey_spec.trim().is_empty() {
+        DEFAULT_HOTKEY.to_string()
+    } else {
+        hotkey_spec
+    };
+    let spec = std::env::var("TF_HOTKEY").unwrap_or(spec);
+    let label = hotkey_label(&spec);
+
     // 热键先注册：它决定了 Boss Key 是"收起"还是"退出"
-    let hotkey_guard = build_hotkey(event_loop.create_proxy());
-    let can_restore = hotkey_guard.is_some();
-    if !can_restore && cfg!(windows) {
-        // 没有热键就没人能把窗口叫回来，只能退回老行为
-        eprintln!("[warn] 全局热键 {HOTKEY_TEXT} 注册失败（可能被其他软件占用），Esc 将直接退出");
+    let hotkey_guard = build_hotkey(event_loop.create_proxy(), &spec);
+    let hotkey_ok = hotkey_guard.is_some();
+    if !hotkey_ok {
+        eprintln!("[warn] 全局热键 {label} 注册失败（写法不对或被其他软件占用）");
     }
 
-    let tray_guard = if env_flag("TOUCHFISH_TRAY", true) {
-        build_tray(event_loop.create_proxy())
+    let tray_guard = if tray_on && env_flag("TOUCHFISH_TRAY", true) {
+        build_tray(event_loop.create_proxy(), if hotkey_ok { &label } else { "" })
     } else {
         None
     };
 
+    // 只要还有一个"能把窗口叫回来"的入口，Esc 就只收起；两个都没有才退回退出
+    let can_restore = hotkey_ok || tray_guard.is_some();
+    if !can_restore {
+        eprintln!("[warn] 热键与托盘都不可用，Esc 将直接退出");
+    }
+
     #[cfg(debug_assertions)]
     eprintln!(
         "[desk] 热键 {} {}, 托盘 {}",
-        HOTKEY_TEXT,
-        if can_restore { "就绪" } else { "不可用" },
+        label,
+        if hotkey_ok { "就绪" } else { "不可用" },
         if tray_guard.is_some() { "已创建" } else { "未创建" }
     );
 

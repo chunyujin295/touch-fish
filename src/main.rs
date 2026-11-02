@@ -155,6 +155,11 @@ fn main() -> anyhow::Result<()> {
     }
 
     let reused = probe(port);
+    // 热键与托盘在进程启动时注册，改了要重启；这里先读一次快照
+    let (hotkey, tray) = {
+        let s = store.settings();
+        (s.hotkey.clone(), s.tray)
+    };
     if !reused {
         spawn_server(store, port)?;
     }
@@ -170,7 +175,13 @@ fn main() -> anyhow::Result<()> {
             println!("  本地服务  {url}");
         }
         println!();
-        return desktop::run(&url, data.join("webview"), data.join("window.json"));
+        return desktop::run(
+            &url,
+            data.join("webview"),
+            data.join("window.json"),
+            hotkey,
+            tray,
+        );
     }
 
     #[cfg(not(feature = "gui"))]

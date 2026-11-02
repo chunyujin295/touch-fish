@@ -21,9 +21,7 @@ pub fn parse(path: &Path, id: &str, display_name: &str) -> Result<Book> {
     if chapters.is_empty() {
         chapters.push(Chapter {
             title: "全文".into(),
-            blocks: vec![Block::P {
-                x: text.trim().to_string(),
-            }],
+            blocks: vec![Block::p(text.trim())],
         });
     }
 
@@ -78,7 +76,7 @@ fn split_name_author(stem: &str) -> (String, String) {
 
 /// 书名 / 作者 / 版权这类元信息行，渲染进正文会很出戏
 fn is_meta(b: &Block) -> bool {
-    let Block::P { x } = b else {
+    let Block::P { x, .. } = b else {
         return false;
     };
     let t = x.trim();
@@ -117,7 +115,7 @@ fn split_chapters(text: &str) -> Vec<Chapter> {
         }
         let blocks: Vec<Block> = paras
             .drain(..)
-            .map(|x| Block::P { x })
+            .map(Block::p)
             .collect();
         chapters.push(Chapter {
             title: title.clone().unwrap_or_else(|| "正文".into()),

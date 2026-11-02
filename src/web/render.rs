@@ -10,10 +10,17 @@ use std::collections::HashMap;
 use serde_json::Value;
 
 use super::asset_text;
-use crate::model::{Block, Book};
+use crate::model::{Block, Book, Inline};
 use crate::noise::{seed_of, Rng};
 
-pub fn page(book: &Book, idx: usize, site_id: &str, pack_id: &str, boss_url: &str) -> String {
+pub fn page(
+    book: &Book,
+    idx: usize,
+    site_id: &str,
+    pack_id: &str,
+    boss_url: &str,
+    page_no: usize,
+) -> String {
     let sites = load("data/sites.json");
     let packs = load("data/packs.json");
 
@@ -55,12 +62,30 @@ pub fn page(book: &Book, idx: usize, site_id: &str, pack_id: &str, boss_url: &st
     let blocks = chapter.map(|c| c.blocks.clone()).unwrap_or_default();
 
     // ---- 正文 + 目录 ----
+    // 分页伪装：CSDN / 博客园的长文本来就是一页一页翻的，sites.json 里 paging 决定每页多少块
+    let per = site.get("paging").and_then(|v| v.as_u64()).unwrap_or(0) as usize;
+    let ranges = paginate(&blocks, per);
+    let total_pages = ranges.len().max(1);
+    let cur = page_no.clamp(1, total_pages);
+    let (b0, b1) = ranges.get(cur - 1).copied().unwrap_or((0, blocks.len()));
+    let page_blocks = &blocks[b0..b1];
+
     let mut toc: Vec<(String, String)> = Vec::new();
-    let body = body_html(&blocks, &chapter_title, &mut toc);
+    let body = body_html(page_blocks, &chapter_title, &mut toc);
 
     // ---- 元信息 ----
     let author = pick_author(&pack, &mut rng, &book.author);
-    let read = rng.range(1_200, 24_000);
+    // 阅读量必须跟篇幅挂钩：一段两百字的短帖配八千阅读，比任何排版破绽都显眼
+    let words: usize = blocks
+        .iter()
+        .map(|b| match b {
+            Block::P { x, .. } | Block::H { x, .. } | Block::Q { x } => x.chars().count(),
+            Block::List { items, .. } => items.iter().map(|i| i.chars().count()).sum(),
+            Block::Code { x, .. } => x.chars().count() / 3,
+            _ => 0,
+        })
+        .sum();
+    let read = ((words * rng.range(12, 34)) / 10).clamp(160, 480_000);
     let like = (read / rng.range(18, 60)).max(3);
     // 收藏一定少于点赞，不能出现两个数字一模一样这种破绽
     let star = (like / rng.range(3, 7)).max(1);
@@ -121,15 +146,6 @@ pub fn page(book: &Book, idx: usize, site_id: &str, pack_id: &str, boss_url: &st
     let term = tags.first().cloned().unwrap_or_default();
     let posts = rng.range(24, 168); // 专栏里收录了多少篇，跟评论数不是一回事
     // 阅读时长按正文字数算，不能拍脑袋——两行字的帖子标"阅读 8 分钟"更假
-    let words: usize = blocks
-        .iter()
-        .map(|b| match b {
-            Block::P { x } | Block::H { x, .. } | Block::Q { x } => x.chars().count(),
-            Block::List { items, .. } => items.iter().map(|i| i.chars().count()).sum(),
-            Block::Code { x, .. } => x.chars().count() / 3,
-            _ => 0,
-        })
-        .sum();
     let mins = ((words as f64 / 380.0).round() as usize).max(1);
     let fork = (star / 5).max(7); // star 和 fork 不能同数，比例大概是 5:1
     // GitHub 的仓库名必须是 ASCII——中文仓库名挂在 /{user}/{repo} 上一眼就是假的
@@ -203,7 +219,18 @@ pub fn page(book: &Book, idx: usize, site_id: &str, pack_id: &str, boss_url: &st
     m.insert("ABS_ME", esc(&abs.1));
     m.insert("ABS_RS", esc(&abs.2));
     m.insert("KEYWORDS", tags.join(" / "));
-    m.insert("PAGER", pager(&book, idx, &sid, s(&pack, "id")));
+    m.insert(
+        "PAGER",
+        format!(
+            "{}{}",
+            if total_pages > 1 {
+                page_bar(&book.id, idx, &sid, s(&pack, "id"), cur, total_pages)
+            } else {
+                String::new()
+            },
+            pager(&book, idx, &sid, s(&pack, "id"))
+        ),
+    );
     m.insert("FOOTER", esc(&footer));
     m.insert("HOST", esc(&host));
     m.insert("URL", esc(&url));
@@ -249,6 +276,34 @@ fn esc(s: &str) -> String {
             '"' => out.push_str("&quot;"),
             '\'' => out.push_str("&#39;"),
             _ => out.push(c),
+        }
+    }
+    out
+}
+
+/// 段落的行内片段 → HTML。
+/// 只有 http(s) 的链接才渲染成 <a>：电子书里绝大多数内链是 `../Text/ch03.xhtml` 这种，
+/// 在假站点上点过去是 404，比不做链接更露馅。
+fn inline_html(runs: &[Inline]) -> String {
+    let mut out = String::new();
+    for r in runs {
+        match r {
+            Inline::Text(t) => out.push_str(&esc(t)),
+            Inline::Strong(t) => out.push_str(&format!("<b>{}</b>", esc(t))),
+            Inline::Em(t) => out.push_str(&format!("<i>{}</i>", esc(t))),
+            Inline::Code(t) => out.push_str(&format!("<code>{}</code>", esc(t))),
+            Inline::Link { href, text } => {
+                let h = href.trim();
+                if h.starts_with("http://") || h.starts_with("https://") {
+                    out.push_str(&format!(
+                        "<a href=\"{}\" target=\"_blank\" rel=\"noopener noreferrer\">{}</a>",
+                        esc(h),
+                        esc(text)
+                    ));
+                } else {
+                    out.push_str(&esc(text));
+                }
+            }
         }
     }
     out
@@ -532,6 +587,74 @@ fn pager(book: &Book, idx: usize, site: &str, pack: &str) -> String {
 
 /* ================= 正文 ================= */
 
+/// 把整章切成每页 per 个块。per = 0 表示不分页。
+/// 页尾如果正好压在标题上，就把标题推到下一页——真实分页也极少让标题孤零零留在页底。
+fn paginate(blocks: &[Block], per: usize) -> Vec<(usize, usize)> {
+    if per == 0 || blocks.len() <= per {
+        return vec![(0, blocks.len())];
+    }
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < blocks.len() {
+        let mut j = (i + per).min(blocks.len());
+        while j < blocks.len() && j > i + 1 && matches!(blocks[j - 1], Block::H { .. }) {
+            j -= 1;
+        }
+        out.push((i, j));
+        i = j;
+    }
+    out
+}
+
+/// 文章分页条：CSDN 式的「1 2 3 … 下一页」。
+/// 页数多的时候只显示当前页附近的窗口，不然一排 40 个数字不像话。
+fn page_bar(book_id: &str, idx: usize, site: &str, pack: &str, cur: usize, total: usize) -> String {
+    let link = |p: usize, label: &str, cls: &str| {
+        format!(
+            "<a class=\"{cls}\" href=\"/r/{book_id}/{idx}?site={site}&pack={pack}&p={p}\">{label}</a>"
+        )
+    };
+    let mut out = String::from("<div class=\"pgbar\">");
+    out.push_str(&format!(
+        "<span class=\"lbl\">第 {cur} / {total} 页</span>"
+    ));
+    if cur > 1 {
+        out.push_str(&link(cur - 1, "‹ 上一页", "pn"));
+    } else {
+        out.push_str("<span class=\"pn off\">‹ 上一页</span>");
+    }
+    out.push_str("<span class=\"nums\">");
+    let from = cur.saturating_sub(2).max(1);
+    let to = (from + 4).min(total);
+    if from > 1 {
+        out.push_str(&link(1, "1", ""));
+        if from > 2 {
+            out.push_str("<i>…</i>");
+        }
+    }
+    for p in from..=to {
+        if p == cur {
+            out.push_str(&format!("<b>{p}</b>"));
+        } else {
+            out.push_str(&link(p, &p.to_string(), ""));
+        }
+    }
+    if to < total {
+        if to + 1 < total {
+            out.push_str("<i>…</i>");
+        }
+        out.push_str(&link(total, &total.to_string(), ""));
+    }
+    out.push_str("</span>");
+    if cur < total {
+        out.push_str(&link(cur + 1, "下一页 ›", "pn"));
+    } else {
+        out.push_str("<span class=\"pn off\">下一页 ›</span>");
+    }
+    out.push_str("</div>");
+    out
+}
+
 fn body_html(blocks: &[Block], chapter_title: &str, toc: &mut Vec<(String, String)>) -> String {
     let mut out = String::new();
     let mut hcount = 0usize;
@@ -539,8 +662,12 @@ fn body_html(blocks: &[Block], chapter_title: &str, toc: &mut Vec<(String, Strin
 
     for blk in blocks {
         match blk {
-            Block::P { x } => {
-                out.push_str(&format!("<p>{}</p>", esc(x)));
+            Block::P { x, inl } => {
+                if inl.is_empty() {
+                    out.push_str(&format!("<p>{}</p>", esc(x)));
+                } else {
+                    out.push_str(&format!("<p>{}</p>", inline_html(inl)));
+                }
             }
             Block::H { level, x } => {
                 // 章首那个与章节名重复的标题不再重复渲染

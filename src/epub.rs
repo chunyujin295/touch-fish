@@ -12,7 +12,7 @@ use quick_xml::events::{BytesStart, Event};
 use quick_xml::Reader;
 use sha2::{Digest, Sha256};
 
-use crate::model::{Block, Book, Chapter};
+use crate::model::{Block, Book, Chapter, Inline};
 
 pub fn parse(path: &Path, id: &str, media_dir: &Path) -> Result<Book> {
     let file = File::open(path).with_context(|| format!("打开失败: {}", path.display()))?;
@@ -603,10 +603,140 @@ fn parse_doc(xml: &str, doc_path: &str, ctx: &mut Ctx) -> (Vec<Block>, Option<St
     (p.blocks, p.title)
 }
 
+#[derive(Clone, Copy, PartialEq)]
+enum RunKind {
+    Text,
+    Strong,
+    Em,
+    Code,
+    Link,
+}
+
+/// 把一段文本按当前样式接到行内序列末尾；同类的相邻片段直接合并，
+/// 免得一本书的段落里堆出几百个只有几个字的小片段。
+fn push_run(inl: &mut Vec<Inline>, kind: RunKind, href: &str, s: &str) {
+    if s.is_empty() {
+        return;
+    }
+    if let Some(last) = inl.last_mut() {
+        let slot = match (last, kind) {
+            (Inline::Text(t), RunKind::Text) => Some(t),
+            (Inline::Strong(t), RunKind::Strong) => Some(t),
+            (Inline::Em(t), RunKind::Em) => Some(t),
+            (Inline::Code(t), RunKind::Code) => Some(t),
+            (Inline::Link { href: h, text: t }, RunKind::Link) if h == href => Some(t),
+            _ => None,
+        };
+        if let Some(t) = slot {
+            t.push_str(s);
+            return;
+        }
+    }
+    inl.push(match kind {
+        RunKind::Text => Inline::Text(s.to_string()),
+        RunKind::Strong => Inline::Strong(s.to_string()),
+        RunKind::Em => Inline::Em(s.to_string()),
+        RunKind::Code => Inline::Code(s.to_string()),
+        RunKind::Link => Inline::Link {
+            href: href.to_string(),
+            text: s.to_string(),
+        },
+    });
+}
+
+/// 折叠空白但**不裁两端**——裁了的话相邻片段之间该有的空格会丢，"foo"+" bar" 会粘成 "foobar"
+fn collapse(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut prev_space = false;
+    for c in s.chars() {
+        if c.is_whitespace() {
+            if !prev_space {
+                out.push(' ');
+                prev_space = true;
+            }
+        } else {
+            out.push(c);
+            prev_space = false;
+        }
+    }
+    out
+}
+
+/// 收尾：折叠空白、丢掉空片段、裁掉整段的头尾空格
+fn finish_runs(runs: Vec<Inline>) -> Vec<Inline> {
+    let mut out: Vec<Inline> = Vec::new();
+    for r in runs {
+        let r = match r {
+            Inline::Text(t) => Inline::Text(collapse(&t)),
+            Inline::Strong(t) => Inline::Strong(collapse(&t)),
+            Inline::Em(t) => Inline::Em(collapse(&t)),
+            Inline::Code(t) => Inline::Code(collapse(&t)),
+            Inline::Link { href, text } => Inline::Link {
+                href,
+                text: collapse(&text),
+            },
+        };
+        let empty = match &r {
+            Inline::Text(t) | Inline::Strong(t) | Inline::Em(t) | Inline::Code(t) => t.is_empty(),
+            Inline::Link { text, .. } => text.is_empty(),
+        };
+        if empty {
+            continue;
+        }
+        push_run(
+            &mut out,
+            match &r {
+                Inline::Text(_) => RunKind::Text,
+                Inline::Strong(_) => RunKind::Strong,
+                Inline::Em(_) => RunKind::Em,
+                Inline::Code(_) => RunKind::Code,
+                Inline::Link { .. } => RunKind::Link,
+            },
+            match &r {
+                Inline::Link { href, .. } => href,
+                _ => "",
+            },
+            match &r {
+                Inline::Text(t) | Inline::Strong(t) | Inline::Em(t) | Inline::Code(t) => t,
+                Inline::Link { text, .. } => text,
+            },
+        );
+    }
+    if let Some(Inline::Text(t) | Inline::Strong(t) | Inline::Em(t) | Inline::Code(t)) =
+        out.first_mut()
+    {
+        *t = t.trim_start().to_string();
+    } else if let Some(Inline::Link { text, .. }) = out.first_mut() {
+        *text = text.trim_start().to_string();
+    }
+    if let Some(Inline::Text(t) | Inline::Strong(t) | Inline::Em(t) | Inline::Code(t)) =
+        out.last_mut()
+    {
+        *t = t.trim_end().to_string();
+    } else if let Some(Inline::Link { text, .. }) = out.last_mut() {
+        *text = text.trim_end().to_string();
+    }
+    out.retain(|r| match r {
+        Inline::Text(t) | Inline::Strong(t) | Inline::Em(t) | Inline::Code(t) => !t.is_empty(),
+        Inline::Link { text, .. } => !text.is_empty(),
+    });
+    // 全是纯文本就没必要带着 inl 走，省一半存储
+    if out.len() == 1 && matches!(out[0], Inline::Text(_)) {
+        return Vec::new();
+    }
+    out
+}
+
 #[derive(Default)]
 struct Parser {
     blocks: Vec<Block>,
     buf: String,
+    /// 段落的行内片段（粗体/斜体/链接/行内代码），只在 P 上用
+    inl: Vec<Inline>,
+    bold: usize,
+    ital: usize,
+    icode: usize,
+    link: Option<String>,
     /// 已打开但还没结束的 p/h/quote/code，用于判断是不是最外层
     open: Vec<&'static str>,
     pre: usize,
@@ -634,6 +764,26 @@ impl Parser {
         }
         if self.pre > 0 || !self.open.is_empty() || self.table_depth > 0 || self.list_depth > 0 {
             self.buf.push_str(s);
+        }
+        // 段落/引用的行内格式只在这两种块上收集；列表项、表格单元格、代码块都当纯文本
+        if self.pre == 0
+            && self.list_depth == 0
+            && self.table_depth == 0
+            && !self.open.is_empty()
+        {
+            let kind = if self.icode > 0 {
+                RunKind::Code
+            } else if self.link.is_some() {
+                RunKind::Link
+            } else if self.bold > 0 {
+                RunKind::Strong
+            } else if self.ital > 0 {
+                RunKind::Em
+            } else {
+                RunKind::Text
+            };
+            let href = self.link.clone().unwrap_or_default();
+            push_run(&mut self.inl, kind, &href, s);
         }
     }
 
@@ -675,6 +825,16 @@ impl Parser {
             b"h5" => self.open.push("h5"),
             b"h6" => self.open.push("h6"),
             b"blockquote" => self.open.push("q"),
+            b"b" | b"strong" => self.bold += 1,
+            b"i" | b"em" => self.ital += 1,
+            b"code" | b"tt" | b"kbd" | b"samp" if self.pre == 0 => self.icode += 1,
+            b"a" => {
+                if let Some(href) = attr(e, b"href") {
+                    if !href.trim().is_empty() {
+                        self.link = Some(href.trim().to_string());
+                    }
+                }
+            }
             b"pre" => {
                 self.pre += 1;
                 self.open.push("code");
@@ -741,9 +901,7 @@ impl Parser {
             b"p" => {
                 self.open.retain(|k| *k != "p");
                 if self.list_depth == 0 && self.table_depth == 0 && self.open.is_empty() {
-                    self.flush_para(Block::P {
-                        x: String::new(),
-                    });
+                    self.flush_para(Block::p(""));
                 }
             }
             b"h1" | b"h2" | b"h3" | b"h4" | b"h5" | b"h6" => {
@@ -759,6 +917,7 @@ impl Parser {
                 if self.open.is_empty() {
                     let level = (n[1] - b'0') as u8;
                     let x = squash(&std::mem::take(&mut self.buf));
+                    self.inl.clear();
                     if !x.is_empty() {
                         self.blocks.push(Block::H { level, x });
                     }
@@ -766,12 +925,15 @@ impl Parser {
             }
             b"blockquote" => {
                 self.open.retain(|k| *k != "q");
+                self.inl.clear();
                 if self.open.is_empty() {
-                    self.flush_para(Block::Q {
-                        x: String::new(),
-                    });
+                    self.flush_para(Block::q(""));
                 }
             }
+            b"b" | b"strong" => self.bold = self.bold.saturating_sub(1),
+            b"i" | b"em" => self.ital = self.ital.saturating_sub(1),
+            b"code" | b"tt" | b"kbd" | b"samp" => self.icode = self.icode.saturating_sub(1),
+            b"a" => self.link = None,
             b"pre" => {
                 self.pre = self.pre.saturating_sub(1);
                 self.open.retain(|k| *k != "code");
@@ -829,12 +991,13 @@ impl Parser {
     /// 用给定构造器替换 x 字段，避免重复代码
     fn flush_para(&mut self, proto: Block) {
         let x = squash(&std::mem::take(&mut self.buf));
+        let inl = finish_runs(std::mem::take(&mut self.inl));
         if x.is_empty() {
             return;
         }
         match proto {
-            Block::P { .. } => self.blocks.push(Block::P { x }),
-            Block::Q { .. } => self.blocks.push(Block::Q { x }),
+            Block::P { .. } => self.blocks.push(Block::rich(x, inl)),
+            Block::Q { .. } => self.blocks.push(Block::q(x)),
             _ => {}
         }
     }
@@ -842,8 +1005,9 @@ impl Parser {
     /// 收尾：把残留文本补成段落
     fn flush_pending(&mut self) {
         let x = squash(&std::mem::take(&mut self.buf));
+        let inl = finish_runs(std::mem::take(&mut self.inl));
         if !x.is_empty() && self.pre == 0 {
-            self.blocks.push(Block::P { x });
+            self.blocks.push(Block::rich(x, inl));
         }
     }
 }

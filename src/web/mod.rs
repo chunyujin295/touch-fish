@@ -291,6 +291,19 @@ async fn get_settings(State(app): State<Shared>) -> Json<Value> {
     Json(v)
 }
 
+/// 热键写法的合法性校验。没有 GUI 的构建里只做非空判断
+/// （解析器在 desktop.rs，它跟着 gui feature 一起开关）。
+fn hotkey_valid(spec: &str) -> bool {
+    #[cfg(feature = "gui")]
+    {
+        crate::desktop::hotkey_ok(spec)
+    }
+    #[cfg(not(feature = "gui"))]
+    {
+        !spec.trim().is_empty()
+    }
+}
+
 async fn set_settings(
     State(app): State<Shared>,
     Json(body): Json<Value>,
@@ -312,6 +325,15 @@ async fn set_settings(
         }
         if let Some(v) = body.get("pause_on_blur").and_then(|v| v.as_bool()) {
             s.pause_on_blur = v;
+        }
+        if let Some(v) = body.get("hotkey").and_then(|v| v.as_str()) {
+            // 热键写法不校验的话，拼错的字符串会让热键静默失效，用户以为设置没生效
+            if v.trim().is_empty() || hotkey_valid(v) {
+                s.hotkey = v.trim().to_string();
+            }
+        }
+        if let Some(v) = body.get("tray").and_then(|v| v.as_bool()) {
+            s.tray = v;
         }
     });
     let mut v = serde_json::to_value(next).unwrap_or_else(|_| json!({}));
@@ -377,6 +399,8 @@ async fn packs() -> Json<Value> {
 struct ReaderQuery {
     site: Option<String>,
     pack: Option<String>,
+    /// 文章分页页码，从 1 开始；不传就是第一页
+    p: Option<usize>,
 }
 
 async fn reader(
@@ -394,7 +418,7 @@ async fn reader(
     let total = book.chapters.len().max(1);
     let idx = idx.min(total - 1);
 
-    let html = render::page(&book, idx, &site, &pack, &settings.boss_url);
+    let html = render::page(&book, idx, &site, &pack, &settings.boss_url, q.p.unwrap_or(1));
     app.store.set_progress(&id, idx);
 
     Html(html).into_response()

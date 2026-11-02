@@ -1,6 +1,7 @@
 /target
 /.tmpdata
 /.reldata
+/dist
 *.pdb
 .DS_Store
 .idea/
