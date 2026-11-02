@@ -8,7 +8,8 @@
 #   assets/app/logo.png   128×128 PNG，书库界面的 favicon 与左上角品牌图标
 #
 # 不引 Pillow：源图是 8 位 RGB、非隔行，标准滤波就那五种，自己解一遍反而没有依赖。
-# 顺手做三件事：① 裁掉大片留白 ② 把白底抠成透明 ③ 用面积平均缩放（不是最近邻）。
+# 只做两件事：① 裁掉四周大片留白 ② 用面积平均缩放（不是最近邻）。
+# 刻意**不做**透明背景：原图什么底就什么底，图标通道固定 255。
 
 import struct
 import sys
@@ -125,20 +126,20 @@ def square_with_padding(box, w, h, pad_ratio=0.06):
     return x0, y0, side
 
 
-def alpha_key(px):
-    """白底抠成透明：接近纯白的透明，边上的抗锯齿灰按比例给半透明"""
+def opaque(px):
+    """alpha 固定 255（不做透明背景）；接近纯白的底色统一压成纯白。
+
+    源图是从带压缩痕迹的图转来的，白底上有 250~254 的杂色，
+    缩到 64px 会变成一片脏点，所以这里把「几乎白」直接归白。
+    """
     r, g, b, _ = px
-    m = min(r, g, b)
-    if m >= 248:
-        return (r, g, b, 0)
-    if m <= 225:
-        return (r, g, b, 255)
-    a = int(round(255 * (248 - m) / 23.0))
-    return (r, g, b, a)
+    if min(r, g, b) >= 248:
+        return (255, 255, 255, 255)
+    return (r, g, b, 255)
 
 
 def resize(rows, x0, y0, side, size):
-    """面积平均缩放，预乘 alpha 再还原，避免缩放后边缘发灰"""
+    """面积平均缩放：每个目标像素取源图对应区块的平均色，alpha 恒为 255"""
     out = []
     scale = side / size
     for oy in range(size):
@@ -148,29 +149,27 @@ def resize(rows, x0, y0, side, size):
         for ox in range(size):
             sx0 = x0 + int(ox * scale)
             sx1 = max(sx0 + 1, x0 + int((ox + 1) * scale))
-            rs = gs = bs = as_ = n = 0
+            rs = gs = bs = n = 0
             for sy in range(sy0, sy1):
                 for sx in range(sx0, sx1):
-                    r, g, b, a = alpha_key(rows[sy][sx])
-                    rs += r * a
-                    gs += g * a
-                    bs += b * a
-                    as_ += a
+                    r, g, b, _ = opaque(rows[sy][sx])
+                    rs += r
+                    gs += g
+                    bs += b
                     n += 1
-            if as_ == 0:
-                line.append((0, 0, 0, 0))
-            else:
-                line.append((rs // as_, gs // as_, bs // as_, as_ // n))
+            line.append((rs // n, gs // n, bs // n, 255))
         out.append(line)
     return out
 
 
 def write_png(path, rows, size):
+    """输出 RGB（颜色类型 2）而不是 RGBA：文件里根本不带 alpha 通道"""
     raw = bytearray()
     for y in range(size):
         raw.append(0)
         for x in range(size):
-            raw.extend(rows[y][x])
+            r, g, b, _ = rows[y][x]
+            raw.extend((r, g, b))
 
     def chunk(tag, body):
         return (
@@ -182,7 +181,7 @@ def write_png(path, rows, size):
 
     png = (
         b"\x89PNG\r\n\x1a\n"
-        + chunk(b"IHDR", struct.pack(">IIBBBBB", size, size, 8, 6, 0, 0, 0))
+        + chunk(b"IHDR", struct.pack(">IIBBBBB", size, size, 8, 2, 0, 0, 0))
         + chunk(b"IDAT", zlib.compress(bytes(raw), 9))
         + chunk(b"IEND", b"")
     )
