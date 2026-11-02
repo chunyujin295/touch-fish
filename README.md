@@ -1,3 +1,5 @@
+<p align="center"><img src="docs/img/logo2.png" width="120" alt="TouchFish 标志：戴墨镜的猫躺在一条鱼上"></p>
+
 # TouchFish
 
 把本地电子书渲染成"以假乱真"的社区网页——同一份书籍内容，装进本来就该长这样的壳里。
@@ -107,7 +109,7 @@ src/
     mod.rs       路由与 API
     render.rs    皮肤 × 主题包 → 完整 HTML（服务端直出）
 assets/
-  app/           书库界面（原生 JS + CSS，无构建）+ 应用图标
+  app/           书库界面（原生 JS + CSS，无构建）+ 应用图标（由 tools/make_icon.py 生成）
   reader/        3 套版式模板与 CSS（blog / forum / acad）
   sites/         站点层样式（accent、宽度、顶栏深色、细节件）
   data/          sites.json（13 个站点）、packs.json（8 个主题包）
