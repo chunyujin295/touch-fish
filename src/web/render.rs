@@ -109,7 +109,7 @@ pub fn page(
     let kinds = figure_kinds(s(&pack, "id"), seed);
     let figs: Vec<String> = if p_page >= 10 && !has_img {
         let n = if p_page >= 18 { 2 } else { 1 };
-        (0..n).map(|i| figure_html(kinds[i], &tags, i + 1)).collect()
+        (0..n).map(|i| figure_html(kinds[i], &tags, i + 1, seed)).collect()
     } else {
         Vec::new()
     };
@@ -873,24 +873,32 @@ fn icon_svg(paths: &str) -> String {
 
 /// 不同主题包配不同的示意图：后端看架构和时序，医学看曲线，安全看分层。
 fn figure_kinds(pack_id: &str, seed: u64) -> [u8; 2] {
-    let pref: [u8; 2] = match pack_id {
-        "crypto" => [1, 3],
-        "infosec" => [3, 0],
-        "med" => [2, 3],
-        "edu" => [3, 0],
-        "bio" => [2, 3],
-        "math" => [2, 0],
-        "phys" => [2, 3],
-        _ => [0, 1],
+    // 每个主题包一个候选池：第一张固定取最贴切的那种（后端看链路、医学看曲线、
+    // 安全看分层），第二张从池里按 seed 随机，同一本书不同章节的图不会总是一对。
+    let pool: &[u8] = match pack_id {
+        "crypto" => &[1, 4, 7, 3, 6],
+        "infosec" => &[3, 5, 8, 7],
+        "med" => &[2, 6, 5, 3],
+        "edu" => &[4, 5, 3, 6],
+        "bio" => &[2, 6, 4, 3],
+        "math" => &[2, 6, 5, 7],
+        "phys" => &[2, 6, 8, 3],
+        _ => &[0, 1, 4, 5, 7],
     };
-    // 第二张从剩下三种里按 seed 挑：同一主题在不同章节看到的图组合不一样
-    let alt = ((seed >> 5) % 4) as u8;
-    [pref[0], if alt == pref[0] { pref[1] } else { alt }]
+    let rest = pool.len().saturating_sub(1).max(1);
+    // 相邻章节的 seed 只差几个数，直接取模会几乎落在同一格；
+    // 先做一次 splitmix 混合，保证同一本书翻十章的图是真的在换。
+    let mut z = seed ^ 0x9e37_79b9_7f4a_7c15;
+    z = (z ^ (z >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
+    z = (z ^ (z >> 27)).wrapping_mul(0x94d0_49bb_1331_11eb);
+    let h = z ^ (z >> 31);
+    let idx = 1 + (h as usize % rest);
+    [pool[0], pool[idx.min(pool.len() - 1)]]
 }
 
 /// 四张示意图，按主题包的术语填标签。
 /// 全内联 SVG：不联网、不占体积，颜色全走 CSS 变量，深色模式不用另画一套。
-fn figure_svg(kind: u8, terms: &[String]) -> String {
+fn figure_svg(kind: u8, terms: &[String], seed: u64) -> String {
     let t = |i: usize| terms.get(i).cloned().unwrap_or_else(|| "服务".to_string());
     match kind {
         0 => {
@@ -948,6 +956,111 @@ fn figure_svg(kind: u8, terms: &[String]) -> String {
 </svg>"##
             )
         }
+        4 => {
+            let (a, b, c) = (esc(&t(0)), esc(&t(1)), esc(&t(2)));
+            format!(
+                r##"<svg class="figsvg" viewBox="0 0 640 300" role="img" aria-label="处理流程示意图">
+<rect class="pl" x="24" y="122" width="96" height="50" rx="25"/><text class="tx" x="72" y="152" text-anchor="middle">开始</text>
+<path class="ln" d="M120 147h22m-6-4l6 4-6 4"/>
+<rect class="pl" x="146" y="122" width="110" height="50" rx="7"/><text class="tx" x="201" y="152" text-anchor="middle">{a}</text>
+<path class="ln" d="M256 147h42m-6-4l6 4-6 4"/>
+<polygon class="hl" points="352,112 402,147 352,182 302,147"/><text class="tx" x="352" y="152" text-anchor="middle">校验</text>
+<path class="ln" d="M402 147h22m-6-4l6 4-6 4"/><text class="t2" x="410" y="140">是</text>
+<rect class="pl" x="428" y="122" width="116" height="50" rx="7"/><text class="tx" x="486" y="152" text-anchor="middle">{c}</text>
+<path class="ln" d="M352 112V56H201v58m-4-6l4 6 4-6"/><text class="t2" x="330" y="50">否</text>
+<text class="t2" x="24" y="210">{b}：失败时退回上一步并记录</text>
+</svg>"##
+            )
+        }
+        5 => {
+            let mut bars = String::new();
+            let h1 = [118, 86, 132, 96];
+            let h2 = [72, 60, 96, 74];
+            let names = ["基线", "优化后", "压测", "线上"];
+            for i in 0..4usize {
+                let x = 78 + i * 118;
+                bars.push_str(&format!(
+                    r##"<rect class="bar" x="{}" y="{}" width="34" height="{}"/><rect class="bar2" x="{}" y="{}" width="34" height="{}"/><text class="t2" x="{}" y="266" text-anchor="middle">{}</text>"##,
+                    x,
+                    232 - h1[i],
+                    h1[i],
+                    x + 40,
+                    232 - h2[i],
+                    h2[i],
+                    x + 36,
+                    names[i]
+                ));
+            }
+            format!(
+                r##"<svg class="figsvg" viewBox="0 0 640 300" role="img" aria-label="方案对比柱状图">
+<path class="ax" d="M56 34v216h548"/>
+<path class="gd" d="M56 88h548M56 136h548M56 184h548"/>
+<text class="t2" x="48" y="92" text-anchor="end">120</text>
+<text class="t2" x="48" y="140" text-anchor="end">80</text>
+<text class="t2" x="48" y="188" text-anchor="end">40</text>
+<text class="t2" x="48" y="236" text-anchor="end">0</text>
+{bars}
+<rect class="bar" x="466" y="38" width="11" height="11" rx="2"/><text class="t2" x="482" y="48">优化前</text>
+<rect class="bar2" x="544" y="38" width="11" height="11" rx="2"/><text class="t2" x="560" y="48">优化后</text>
+</svg>"##
+            )
+        }
+        6 => {
+            let mut st = seed | 1;
+            let mut dots = String::new();
+            for i in 0..22i32 {
+                st = st
+                    .wrapping_mul(6364136223846793005)
+                    .wrapping_add(1442695040888963407);
+                let x = 82 + i * 22 + (((st >> 33) as i32) % 14);
+                let y = 230 - i * 6 - (((st >> 20) as i32) % 44);
+                if y > 56 && x < 596 {
+                    dots.push_str(&format!(
+                        r##"<circle class="dot" cx="{x}" cy="{y}" r="2.6"/>"##
+                    ));
+                }
+            }
+            format!(
+                r##"<svg class="figsvg" viewBox="0 0 640 300" role="img" aria-label="样本分布散点图">
+<path class="ax" d="M56 34v216h548"/>
+<path class="gd" d="M56 88h548M56 136h548M56 184h548"/>
+{dots}
+<path class="cv" d="M74 226L560 98"/>
+<text class="t2" x="56" y="24">观测值</text>
+<text class="t2" x="470" y="276">样本序号</text>
+</svg>"##
+            )
+        }
+        7 => {
+            let (a, b, c) = (esc(&t(0)), esc(&t(1)), esc(&t(2)));
+            format!(
+                r##"<svg class="figsvg" viewBox="0 0 640 300" role="img" aria-label="状态流转示意图">
+<rect class="pl" x="64" y="56" width="156" height="56" rx="28"/><text class="tx" x="142" y="90" text-anchor="middle">{a}</text>
+<rect class="pl" x="420" y="56" width="156" height="56" rx="28"/><text class="tx" x="498" y="90" text-anchor="middle">{b}</text>
+<rect class="pl" x="420" y="192" width="156" height="56" rx="28"/><text class="tx" x="498" y="226" text-anchor="middle">{c}</text>
+<rect class="pl" x="64" y="192" width="156" height="56" rx="28"/><text class="tx" x="142" y="226" text-anchor="middle">回滚</text>
+<path class="ln" d="M220 84h194m-6-4l6 4-6 4"/><text class="t2" x="280" y="76">提交</text>
+<path class="ln" d="M498 112v74m-4-6l4 6 4-6"/><text class="t2" x="508" y="156">确认</text>
+<path class="ln" d="M420 220H226m6-4l-6 4 6 4"/><text class="t2" x="286" y="212">超时</text>
+<path class="ln" d="M142 192v-74m-4 6l4-6 4 6"/><text class="t2" x="152" y="156">重试</text>
+</svg>"##
+            )
+        }
+        8 => {
+            let (a, b, c) = (esc(&t(0)), esc(&t(1)), esc(&t(2)));
+            format!(
+                r##"<svg class="figsvg" viewBox="0 0 640 300" role="img" aria-label="任务排期示意图">
+<path class="ax" d="M150 44h458M150 44v216"/>
+<path class="gd" d="M262 44v216M374 44v216M486 44v216M598 44v216"/>
+<text class="t2" x="196" y="34">W1</text><text class="t2" x="308" y="34">W2</text>
+<text class="t2" x="420" y="34">W3</text><text class="t2" x="532" y="34">W4</text>
+<text class="tx" x="24" y="90">{a}</text><rect class="bar" x="156" y="74" width="176" height="18" rx="4"/>
+<text class="tx" x="24" y="146">{b}</text><rect class="bar2" x="268" y="130" width="218" height="18" rx="4"/>
+<text class="tx" x="24" y="202">{c}</text><rect class="bar" x="374" y="186" width="212" height="18" rx="4"/>
+<text class="tx" x="24" y="258">验收</text><rect class="bar2" x="486" y="242" width="150" height="18" rx="4"/>
+</svg>"##
+            )
+        }
         _ => {
             let (a, b, c) = (esc(&t(0)), esc(&t(1)), esc(&t(2)));
             format!(
@@ -972,7 +1085,7 @@ fn figure_svg(kind: u8, terms: &[String]) -> String {
 }
 
 /// 一整套插图：图形 + 图注，按顺序编号。
-fn figure_html(kind: u8, terms: &[String], n: usize) -> String {
+fn figure_html(kind: u8, terms: &[String], n: usize, seed: u64) -> String {
     let cap = match kind {
         0 => format!(
             "图 {n}：{} → {} 的调用链路",
@@ -981,11 +1094,16 @@ fn figure_html(kind: u8, terms: &[String], n: usize) -> String {
         ),
         1 => format!("图 {n}：一次请求的完整时序"),
         2 => format!("图 {n}：不同条件下的指标变化"),
+        4 => format!("图 {n}：处理流程与分支条件"),
+        5 => format!("图 {n}：各阶段优化前后对比"),
+        6 => format!("图 {n}：样本分布与拟合趋势"),
+        7 => format!("图 {n}：状态流转与重试路径"),
+        8 => format!("图 {n}：阶段性任务排期"),
         _ => format!("图 {n}：分层结构与各层职责"),
     };
     format!(
         "<figure class=\"fig\">{}<figcaption>{}</figcaption></figure>",
-        figure_svg(kind, terms),
+        figure_svg(kind, terms, seed),
         esc(&cap)
     )
 }
