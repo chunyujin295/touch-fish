@@ -118,9 +118,27 @@ h1.pt{font-size:24px;line-height:1.45;font-weight:700;letter-spacing:-.4px;margi
 .prose ol li{position:relative;padding-left:24px;margin-bottom:8px;counter-increment:n}
 .prose ol li:before{content:counter(n)".";position:absolute;left:2px;top:0;color:var(--a);font-size:13px;font-weight:600}
 .prose hr.hr{border:none;border-top:1px solid var(--line);margin:26px 0}
-.prose figure.fig{margin:0 0 18px}
+.prose figure.fig{margin:22px 0 18px}
 .prose figure.fig img{border-radius:6px;border:1px solid var(--line);margin:0 auto}
 .prose figure.fig figcaption{font-size:12.5px;color:var(--ink3);text-align:center;margin-top:7px;line-height:1.7}
+
+/* 内联 SVG 示意图：颜色全走变量，深色模式共用一套，不用再画一遍 */
+.prose figure.fig svg{display:block;width:100%;height:auto;border:1px solid var(--line);
+  border-radius:6px;background:var(--card)}
+.figsvg text{font-family:inherit}
+.figsvg .pl{fill:var(--card);stroke:var(--line);stroke-width:1.2}
+.figsvg .hl{fill:var(--as);stroke:var(--ab);stroke-width:1.2}
+.figsvg .ac{fill:var(--ab)}
+.figsvg .dot{fill:var(--a)}
+.figsvg .ln{fill:none;stroke:var(--ink3);stroke-width:1.2;stroke-linecap:round;stroke-linejoin:round}
+.figsvg .gd{fill:none;stroke:var(--line);stroke-width:1;stroke-dasharray:3 4}
+.figsvg .ax{fill:none;stroke:var(--line);stroke-width:1.2}
+.figsvg .cv{fill:none;stroke:var(--a);stroke-width:1.9;stroke-linejoin:round}
+.figsvg .cv2{fill:none;stroke:var(--ink3);stroke-width:1.4;stroke-dasharray:4 4;stroke-linejoin:round}
+.figsvg .tx{fill:var(--ink2);font-size:12.5px}
+.figsvg .t2{fill:var(--ink3);font-size:11px}
+/* 小标题前的行业图标：跟着标题字号走，颜色用强调色 */
+.prose h2 .hico{width:15px;height:15px;vertical-align:-2px;margin-right:7px;color:var(--a)}
 /* 表注：技术文章的表都带一句「表 1：…」 */
 .tblcap{font-size:12.5px;color:var(--ink3);margin:0 0 6px;line-height:1.7}
 

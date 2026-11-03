@@ -86,10 +86,42 @@ pub fn page(
     let (b0, b1) = ranges.get(cur - 1).copied().unwrap_or((0, blocks.len()));
     let page_blocks = &blocks[b0..b1];
 
+    let tags: Vec<String> = pack
+        .get("terms")
+        .and_then(|v| v.as_array())
+        .map(|a| {
+            a.iter()
+                .filter_map(|x| x.as_str().map(|s| s.to_string()))
+                .collect()
+        })
+        .unwrap_or_default();
+
     let mut toc: Vec<(String, String)> = Vec::new();
     // 文中广告：跟顶部那张大卡用不同的一条，避免同一页里同一句广告出现两次
     let mid_ads = mid_ads_html(&pack);
-    let body = body_html(page_blocks, &chapter_title, &mut toc, &mid_ads);
+    // 正文插图：短文不插图（真实的技术贴也不是每篇都有图），长页一到两张
+    let p_page = page_blocks
+        .iter()
+        .filter(|b| matches!(b, Block::P { .. }))
+        .count();
+    // 这一页本来就有插图（EPUB 里的 figcaption 图）就别再叠合成的示意图了
+    let has_img = page_blocks.iter().any(|b| matches!(b, Block::Img { .. }));
+    let kinds = figure_kinds(s(&pack, "id"));
+    let figs: Vec<String> = if p_page >= 10 && !has_img {
+        let n = if p_page >= 18 { 2 } else { 1 };
+        (0..n).map(|i| figure_html(kinds[i], &tags, i + 1)).collect()
+    } else {
+        Vec::new()
+    };
+    let icon = topic_icon(s(&pack, "id"));
+    let body = body_html(
+        page_blocks,
+        &chapter_title,
+        &mut toc,
+        &mid_ads,
+        &figs,
+        icon,
+    );
 
     // ---- 元信息 ----
     let author = pick_author(&pack, &mut rng, &book.author);
@@ -102,15 +134,6 @@ pub fn page(
     let art_ts = book.added_at + idx as i64 * rng.range(1800, 40000) as i64;
     let time = fmt_ts(art_ts.max(1_760_000_000));
 
-    let tags: Vec<String> = pack
-        .get("terms")
-        .and_then(|v| v.as_array())
-        .map(|a| {
-            a.iter()
-                .filter_map(|x| x.as_str().map(|s| s.to_string()))
-                .collect()
-        })
-        .unwrap_or_default();
 
     // ---- 侧栏 / 广告 / 评论 ----
     let side = side_html(&pack, &mut rng);
@@ -764,6 +787,140 @@ fn page_bar(book_id: &str, idx: usize, site: &str, pack: &str, cur: usize, total
     out
 }
 
+
+/* ================= 正文插图 ================= */
+
+/// 主题包的小图标：放在小标题前面的 15px 线条图。
+/// 用 currentColor，颜色跟着标题走，深色不用单独写一遍。
+fn topic_icon(pack_id: &str) -> &'static str {
+    match pack_id {
+        "crypto" => r##"<svg class="hico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="10" height="6.5" rx="1.6"/><path d="M5.4 7V5.2a2.6 2.6 0 0 1 5.2 0V7"/></svg>"##,
+        "infosec" => r##"<svg class="hico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2l5 1.9v4.6c0 3-2.1 4.7-5 5.5-2.9-.8-5-2.5-5-5.5V3.9L8 2z"/><path d="M5.9 8.1l1.5 1.5 2.8-3"/></svg>"##,
+        "med" => r##"<svg class="hico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1.8 9h3l1.4-4.2 2.8 8.4L11 9h3.2"/></svg>"##,
+        "edu" => r##"<svg class="hico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4.3C6.6 3.3 4.8 2.9 3 3.1v8.8c1.8-.2 3.6.2 5 1.2 1.4-1 3.2-1.4 5-1.2V3.1c-1.8-.2-3.6.2-5 1.2z"/><path d="M8 4.3v8.8"/></svg>"##,
+        "bio" => r##"<svg class="hico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 2c0 4.2 6 5.8 6 10"/><path d="M11 2c0 4.2-6 5.8-6 10"/><path d="M5.7 5h4.6M5.7 9h4.6"/></svg>"##,
+        "math" => r##"<svg class="hico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.2 2v11.8H14"/><path d="M3.6 11.4c2.2 0 2.6-7 4.8-7s2 7 4.2 7"/></svg>"##,
+        "phys" => r##"<svg class="hico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 8c1.4 0 1.4-4.6 2.8-4.6S5.7 12.6 7.1 12.6 8.5 8 9.9 8s1.4 4.6 2.8 4.6"/></svg>"##,
+        _ => r##"<svg class="hico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="3.4" cy="8" r="1.9"/><circle cx="12.4" cy="3.6" r="1.9"/><circle cx="12.4" cy="12.4" r="1.9"/><path d="M5.2 8l5.4-3.2M5.2 8l5.4 3.2"/></svg>"##,
+    }
+}
+
+/// 不同主题包配不同的示意图：后端看架构和时序，医学看曲线，安全看分层。
+fn figure_kinds(pack_id: &str) -> [u8; 2] {
+    match pack_id {
+        "crypto" => [1, 3],
+        "infosec" => [3, 0],
+        "med" => [2, 3],
+        "edu" => [3, 0],
+        "bio" => [2, 3],
+        "math" => [2, 0],
+        "phys" => [2, 3],
+        _ => [0, 1],
+    }
+}
+
+/// 四张示意图，按主题包的术语填标签。
+/// 全内联 SVG：不联网、不占体积，颜色全走 CSS 变量，深色模式不用另画一套。
+fn figure_svg(kind: u8, terms: &[String]) -> String {
+    let t = |i: usize| terms.get(i).cloned().unwrap_or_else(|| "服务".to_string());
+    match kind {
+        0 => {
+            let (a, b, c) = (esc(&t(0)), esc(&t(1)), esc(&t(2)));
+            format!(
+                r##"<svg class="figsvg" viewBox="0 0 640 300" role="img" aria-label="调用链路示意图">
+<rect class="pl" x="24" y="120" width="112" height="60" rx="7"/><text class="tx" x="80" y="155" text-anchor="middle">客户端</text>
+<rect class="pl" x="182" y="120" width="112" height="60" rx="7"/><text class="tx" x="238" y="155" text-anchor="middle">接入网关</text>
+<rect class="hl" x="340" y="46" width="128" height="52" rx="7"/><text class="tx" x="404" y="77" text-anchor="middle">{a}</text>
+<rect class="hl" x="340" y="124" width="128" height="52" rx="7"/><text class="tx" x="404" y="155" text-anchor="middle">{b}</text>
+<rect class="hl" x="340" y="202" width="128" height="52" rx="7"/><text class="tx" x="404" y="233" text-anchor="middle">{c}</text>
+<rect class="pl" x="510" y="120" width="106" height="60" rx="7"/><text class="tx" x="563" y="155" text-anchor="middle">存储</text>
+<path class="ln" d="M136 150h34m-6-4l6 4-6 4"/>
+<path class="ln" d="M294 150h20V72h16m-6-4l6 4-6 4"/>
+<path class="ln" d="M294 150h34m-6-4l6 4-6 4"/>
+<path class="ln" d="M294 150h20v78h16m-6-4l6 4-6 4"/>
+<path class="ln" d="M468 72h26v78h8m-6-4l6 4-6 4"/>
+<path class="ln" d="M468 150h32m-6-4l6 4-6 4"/>
+<path class="ln" d="M468 228h26V150h8m-6-4l6 4-6 4"/>
+</svg>"##
+            )
+        }
+        1 => {
+            let (a, b) = (esc(&t(0)), esc(&t(1)));
+            format!(
+                r##"<svg class="figsvg" viewBox="0 0 640 300" role="img" aria-label="请求时序示意图">
+<rect class="pl" x="40" y="18" width="82" height="30" rx="6"/><text class="tx" x="81" y="38" text-anchor="middle">客户端</text>
+<rect class="pl" x="196" y="18" width="82" height="30" rx="6"/><text class="tx" x="237" y="38" text-anchor="middle">网关</text>
+<rect class="hl" x="352" y="18" width="92" height="30" rx="6"/><text class="tx" x="398" y="38" text-anchor="middle">{a}</text>
+<rect class="pl" x="516" y="18" width="72" height="30" rx="6"/><text class="tx" x="552" y="38" text-anchor="middle">存储</text>
+<path class="gd" d="M81 48v232M237 48v232M398 48v232M552 48v232"/>
+<path class="ln" d="M81 86h150m-6-4l6 4-6 4"/><text class="t2" x="90" y="80">发起请求</text>
+<path class="ln" d="M237 128h155m-6-4l6 4-6 4"/><text class="t2" x="246" y="122">鉴权 / 路由</text>
+<path class="ln" d="M398 170h148m-6-4l6 4-6 4"/><text class="t2" x="407" y="164">{b}</text>
+<path class="ln" d="M552 212H398m6-4l-6 4 6 4"/><text class="t2" x="407" y="206">返回结果</text>
+<path class="ln" d="M398 254H81m6-4l-6 4 6 4"/><text class="t2" x="90" y="248">响应客户端</text>
+</svg>"##
+            )
+        }
+        2 => {
+            format!(
+                r##"<svg class="figsvg" viewBox="0 0 640 300" role="img" aria-label="指标随并发变化">
+<path class="ax" d="M64 34v216h536"/>
+<path class="gd" d="M64 76h536M64 119h536M64 162h536M64 205h536"/>
+<text class="t2" x="58" y="38" text-anchor="end">高</text>
+<text class="t2" x="58" y="250" text-anchor="end">低</text>
+<text class="t2" x="64" y="274">低</text>
+<text class="t2" x="576" y="274">高</text>
+<polyline class="cv" points="64,206 135,196 206,181 277,168 348,150 419,140 490,118 561,96 600,86 600,250 64,250"/>
+<polyline class="cv2" points="64,232 135,228 206,222 277,214 348,206 419,196 490,181 561,150 600,138 600,250 64,250"/>
+<polyline class="cv" points="64,206 135,196 206,181 277,168 348,150 419,140 490,118 561,96 600,86"/>
+<text class="tx" x="474" y="86">P99</text>
+<text class="tx" x="474" y="176">P50</text>
+<text class="t2" x="64" y="24">指标值</text>
+</svg>"##
+            )
+        }
+        _ => {
+            let (a, b, c) = (esc(&t(0)), esc(&t(1)), esc(&t(2)));
+            format!(
+                r##"<svg class="figsvg" viewBox="0 0 640 300" role="img" aria-label="分层结构示意图">
+<rect class="pl" x="40" y="26" width="404" height="52" rx="7"/><rect class="ac" x="40" y="26" width="6" height="52" rx="3"/>
+<text class="tx" x="64" y="58">接入层</text><text class="t2" x="140" y="58">限流 · 鉴权 · 协议转换</text>
+<rect class="pl" x="40" y="96" width="404" height="52" rx="7"/><rect class="ac" x="40" y="96" width="6" height="52" rx="3"/>
+<text class="tx" x="64" y="128">逻辑层</text><text class="t2" x="140" y="128">{a} · {b}</text>
+<rect class="pl" x="40" y="166" width="404" height="52" rx="7"/><rect class="ac" x="40" y="166" width="6" height="52" rx="3"/>
+<text class="tx" x="64" y="198">数据层</text><text class="t2" x="140" y="198">{c} · 快照与日志</text>
+<rect class="pl" x="40" y="236" width="404" height="52" rx="7"/><rect class="ac" x="40" y="236" width="6" height="52" rx="3"/>
+<text class="tx" x="64" y="268">基础设施</text><text class="t2" x="140" y="268">监控 · 日志 · 告警</text>
+<path class="gd" d="M470 52h134M470 122h134M470 192h134M470 262h134"/>
+<circle class="dot" cx="478" cy="52" r="3"/><circle class="dot" cx="478" cy="122" r="3"/>
+<circle class="dot" cx="478" cy="192" r="3"/><circle class="dot" cx="478" cy="262" r="3"/>
+<text class="t2" x="492" y="56">可观测</text><text class="t2" x="492" y="126">可扩展</text>
+<text class="t2" x="492" y="196">强一致</text><text class="t2" x="492" y="266">自愈</text>
+</svg>"##
+            )
+        }
+    }
+}
+
+/// 一整套插图：图形 + 图注，按顺序编号。
+fn figure_html(kind: u8, terms: &[String], n: usize) -> String {
+    let cap = match kind {
+        0 => format!(
+            "图 {n}：{} → {} 的调用链路",
+            terms.get(0).map(|s| s.as_str()).unwrap_or("客户端"),
+            terms.get(2).map(|s| s.as_str()).unwrap_or("存储")
+        ),
+        1 => format!("图 {n}：一次请求的完整时序"),
+        2 => format!("图 {n}：不同条件下的指标变化"),
+        _ => format!("图 {n}：分层结构与各层职责"),
+    };
+    format!(
+        "<figure class=\"fig\">{}<figcaption>{}</figcaption></figure>",
+        figure_svg(kind, terms),
+        esc(&cap)
+    )
+}
+
 /// 小标题池：技术文章的小节名，跟具体内容无关，所以放在渲染层当模板用。
 /// 前面加两位编号，视觉上就是「01 背景与问题」这种结构感。
 const SECTION_TITLES: [&str; 16] = [
@@ -949,6 +1106,8 @@ fn body_html(
     chapter_title: &str,
     toc: &mut Vec<(String, String)>,
     ads: &[String],
+    figs: &[String],
+    icon: &str,
 ) -> String {
     let mut out = String::new();
     let mut hcount = 0usize;
@@ -973,6 +1132,16 @@ fn body_html(
     }
     let mut ad_i = 0usize;
 
+    // 插图落点：第一节读完放一张，长页再补一张；和广告位错开，别挤在一起
+    let fig_slots: Vec<usize> = if figs.is_empty() {
+        Vec::new()
+    } else if p_total >= 16 {
+        vec![3, 12]
+    } else {
+        vec![3]
+    };
+    let mut fig_i = 0usize;
+
     for blk in blocks {
         match blk {
             Block::P { x, inl } => {
@@ -992,6 +1161,10 @@ fn body_html(
                     out.push_str(&ads[ad_i]);
                     ad_i += 1;
                 }
+                if fig_slots.contains(&pcount) && fig_i < figs.len() {
+                    out.push_str(&figs[fig_i]);
+                    fig_i += 1;
+                }
             }
             Block::H { level, x } => {
                 // 章首那个与章节名重复的标题不再重复渲染
@@ -1006,8 +1179,9 @@ fn body_html(
                 let shown = renumber_heading(x, hcount);
                 toc.push((id.clone(), shown.clone()));
                 let lv = if *level <= 2 { 2 } else { 3 };
+                let mark = if lv == 2 { icon } else { "" };
                 out.push_str(&format!(
-                    "<h{lv} id=\"{id}\">{}</h{lv}>",
+                    "<h{lv} id=\"{id}\">{mark}{}</h{lv}>",
                     esc(&shown)
                 ));
             }
