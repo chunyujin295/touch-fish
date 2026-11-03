@@ -12,7 +12,7 @@
 
 | | 独立窗口（默认） | 网页模式 |
 |---|---|---|
-| 怎么开 | 双击 `touchfish.exe`，或 `cargo run` | 窗口里「设置 → 在浏览器中打开」；打包版双击 `启动网页版.bat`（源码目录是 `scripts/launch-web.bat`） |
+| 怎么开 | 双击 `touchfish.exe`，或 `cargo run` | 托盘右键「打开网页页面」，或书库设置里「在浏览器中打开」 |
 | 长相 | 无地址栏、无标签页的原生窗口 | 就是一张普通网页 |
 | 依赖 | Windows 需 WebView2 运行时（Win10/11 自带）；Linux 走 WebKitGTK | 只要有个浏览器，什么都不用装 |
 | 窗口标题 | 跟随页面标题，和浏览器标签一致 | 由浏览器标签决定 |
@@ -38,13 +38,13 @@ cargo run --release           # 正式版，单文件，双击即可
 cargo test                    # 解析层的单元测试（MOBI 解压、UTF-8 跨记录）
 ```
 
-网页版不想碰命令行：双击 `scripts/launch-web.bat`，打包版解压后双击 `启动网页版.bat`；两者都是"起服务 + 自动开浏览器"，窗口已经开着时只会把浏览器叫起来。退出在网页的「设置 → 退出 TouchFish」。
+网页版不用碰命令行：托盘右键「打开网页页面」，或书库设置里的「在浏览器中打开」。两者都走同一条路径——先把窗口收起来，再用系统浏览器打开同一个地址，书、进度、设置和窗口里完全一致。退出在网页的「设置 → 退出 TouchFish」。
 
 改 `assets/` 里的 CSS / HTML 时用 `TOUCHFISH_DEV=1 cargo run`（直接从磁盘读资源）；否则资源是编译期用 `include_dir!` 嵌进二进制的，只改样式不重新编译是看不到变化的。另外同一端口已有实例时新进程会复用旧进程，改完代码界面没变先把托盘里的 TouchFish 退出再启动。
 
 打包发给别人：
 
-Windows 直接双击 `scripts\package.bat`——会跑 `cargo build --release`，把 exe、README、样书和 `启动网页版.bat` 收进 `dist\TouchFish-<版本>-win64.zip`，不需要 Git Bash 或 Python：
+Windows 直接双击 `scripts\package.bat`——会跑 `cargo build --release`，把 exe、README 和样书收进 `dist\TouchFish-<版本>-win64.zip`，不需要 Git Bash 或 Python：
 
 ```bat
 scripts\package.bat               :: 编译 release 并打包
@@ -139,7 +139,7 @@ assets/
 prototypes/      早期静态原型（8 套皮肤 + 主题包实验台），保留作设计存档
 docs/            PRD、主题包设计文档
 samples/         测试用样书（虚构的《分布式系统手记》）
-scripts/         生成样书（epub / mobi）、打包脚本（package.sh / package.bat）、网页版启动脚本、快捷键行为测试
+scripts/         生成样书（epub / mobi）与图标、打包脚本（package.sh / package.bat）、主题与快捷键的行为测试
 ```
 
 ## 架构：三层匹配
@@ -166,7 +166,7 @@ scripts/         生成样书（epub / mobi）、打包脚本（package.sh / pac
 | 书库界面（封面、进度、搜索、拖拽导入、章节抽屉） | ✅ |
 | 深色模式（书库 + 阅读页，13 个站点各一套暗色，跟随系统自动切换） | ✅ |
 | 自定义应用图标（设置里上传 PNG / JPG / WebP 即时替换 logo） | ✅ |
-| 网页版一键启动（设置里「在浏览器中打开」/ `启动网页版.bat`，页面内退出） | ✅ |
+| 网页版一键启动（托盘「打开网页页面」/ 设置里「在浏览器中打开」，页面内退出） | ✅ |
 | 数据目录迁移（设置里改路径，复制后立即切换并清理旧目录） | ✅ |
 | 13 个站点皮肤 × 3 种版式（blog / forum / acad） | ✅ |
 | 8 个行业主题包（含禁忌词黑名单） | ✅ |

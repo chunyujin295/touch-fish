@@ -54,9 +54,6 @@ mkdir "%STAGE%"
 copy /y "%BIN%" "%STAGE%\touchfish.exe" >nul
 if errorlevel 1 goto fail
 copy /y "%ROOT%\README.md" "%STAGE%\README.md" >nul
-if exist "%ROOT%\scripts\launch-web.bat" (
-  copy /y "%ROOT%\scripts\launch-web.bat" "%STAGE%\启动网页版.bat" >nul
-)
 
 if exist "%ROOT%\samples" (
   mkdir "%STAGE%\samples" 2>nul
@@ -90,7 +87,7 @@ echo.
 echo   压缩包   dist\!NAME!.zip  ^(!ZIPSIZE! 字节^)
 if defined SHA echo   SHA256   !SHA!
 echo.
-echo   解压后双击 touchfish.exe 即可运行；想用浏览器版就双击「启动网页版.bat」。
+echo   解压后双击 touchfish.exe 即可运行；想用浏览器版就在托盘菜单里点「打开网页页面」。
 echo   数据（书库、进度、设置）在 %%APPDATA%%\TouchFish，删掉即彻底卸载。
 if "%~1"=="" pause
 exit /b 0

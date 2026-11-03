@@ -84,11 +84,6 @@ mkdir -p "$STAGE"
 cp "$BIN" "$STAGE/$EXE"
 cp "$ROOT/README.md" "$STAGE/README.md"
 
-# Windows 上多给一个双击入口：不用记 --server --open，浏览器直接开
-if [ "$TARGET_OS" = "windows" ] && [ -f "$ROOT/scripts/launch-web.bat" ]; then
-  cp "$ROOT/scripts/launch-web.bat" "$STAGE/启动网页版.bat"
-fi
-
 # 样书是可选的：能让人解压后立刻点开看看，不用自己找一本书
 if [ -d "$ROOT/samples" ]; then
   mkdir -p "$STAGE/samples"
