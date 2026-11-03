@@ -131,8 +131,8 @@ h1.pt{font-size:24px;line-height:1.45;font-weight:700;letter-spacing:-.4px;margi
 .figsvg .ac{fill:var(--ab)}
 .figsvg .dot{fill:var(--a)}
 .figsvg .ln{fill:none;stroke:var(--ink3);stroke-width:1.2;stroke-linecap:round;stroke-linejoin:round}
-.figsvg .gd{fill:none;stroke:var(--line);stroke-width:1;stroke-dasharray:3 4}
-.figsvg .ax{fill:none;stroke:var(--line);stroke-width:1.2}
+.figsvg .gd{fill:none;stroke:var(--ink3);stroke-width:1;stroke-dasharray:3 4;opacity:.55}
+.figsvg .ax{fill:none;stroke:var(--ink3);stroke-width:1.2;opacity:.6}
 .figsvg .cv{fill:none;stroke:var(--a);stroke-width:1.9;stroke-linejoin:round}
 .figsvg .cv2{fill:none;stroke:var(--ink3);stroke-width:1.4;stroke-dasharray:4 4;stroke-linejoin:round}
 .figsvg .tx{fill:var(--ink2);font-size:12.5px}

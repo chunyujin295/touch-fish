@@ -106,21 +106,29 @@ pub fn page(
         .count();
     // 这一页本来就有插图（EPUB 里的 figcaption 图）就别再叠合成的示意图了
     let has_img = page_blocks.iter().any(|b| matches!(b, Block::Img { .. }));
-    let kinds = figure_kinds(s(&pack, "id"));
+    let kinds = figure_kinds(s(&pack, "id"), seed);
     let figs: Vec<String> = if p_page >= 10 && !has_img {
         let n = if p_page >= 18 { 2 } else { 1 };
         (0..n).map(|i| figure_html(kinds[i], &tags, i + 1)).collect()
     } else {
         Vec::new()
     };
-    let icon = topic_icon(s(&pack, "id"));
+    // 一页里的图标轮着用：起点跟着 seed 走，不同章节的第一节也不会老是同一个符号
+    let mut icons: Vec<String> = topic_icons(s(&pack, "id"))
+        .iter()
+        .map(|p| icon_svg(p))
+        .collect();
+    if !icons.is_empty() {
+        let off = (seed % icons.len() as u64) as usize;
+        icons.rotate_left(off);
+    }
     let body = body_html(
         page_blocks,
         &chapter_title,
         &mut toc,
         &mid_ads,
         &figs,
-        icon,
+        &icons,
     );
 
     // ---- 元信息 ----
@@ -790,24 +798,82 @@ fn page_bar(book_id: &str, idx: usize, site: &str, pack: &str, cur: usize, total
 
 /* ================= 正文插图 ================= */
 
-/// 主题包的小图标：放在小标题前面的 15px 线条图。
-/// 用 currentColor，颜色跟着标题走，深色不用单独写一遍。
-fn topic_icon(pack_id: &str) -> &'static str {
+/// 每个主题包一组小图标（15px 线性图）：一篇文章里有好几个小节，
+/// 全都顶同一个符号反而更像模板。这里按小节序号轮换，一页里基本不重样。
+///
+/// 只存 viewBox 里的路径，外壳由 `icon_svg` 统一套，省得 40 个图标各写一遍属性。
+fn topic_icons(pack_id: &str) -> &'static [&'static str] {
     match pack_id {
-        "crypto" => r##"<svg class="hico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="10" height="6.5" rx="1.6"/><path d="M5.4 7V5.2a2.6 2.6 0 0 1 5.2 0V7"/></svg>"##,
-        "infosec" => r##"<svg class="hico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2l5 1.9v4.6c0 3-2.1 4.7-5 5.5-2.9-.8-5-2.5-5-5.5V3.9L8 2z"/><path d="M5.9 8.1l1.5 1.5 2.8-3"/></svg>"##,
-        "med" => r##"<svg class="hico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1.8 9h3l1.4-4.2 2.8 8.4L11 9h3.2"/></svg>"##,
-        "edu" => r##"<svg class="hico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4.3C6.6 3.3 4.8 2.9 3 3.1v8.8c1.8-.2 3.6.2 5 1.2 1.4-1 3.2-1.4 5-1.2V3.1c-1.8-.2-3.6.2-5 1.2z"/><path d="M8 4.3v8.8"/></svg>"##,
-        "bio" => r##"<svg class="hico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M5 2c0 4.2 6 5.8 6 10"/><path d="M11 2c0 4.2-6 5.8-6 10"/><path d="M5.7 5h4.6M5.7 9h4.6"/></svg>"##,
-        "math" => r##"<svg class="hico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M2.2 2v11.8H14"/><path d="M3.6 11.4c2.2 0 2.6-7 4.8-7s2 7 4.2 7"/></svg>"##,
-        "phys" => r##"<svg class="hico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1.5 8c1.4 0 1.4-4.6 2.8-4.6S5.7 12.6 7.1 12.6 8.5 8 9.9 8s1.4 4.6 2.8 4.6"/></svg>"##,
-        _ => r##"<svg class="hico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="3.4" cy="8" r="1.9"/><circle cx="12.4" cy="3.6" r="1.9"/><circle cx="12.4" cy="12.4" r="1.9"/><path d="M5.2 8l5.4-3.2M5.2 8l5.4 3.2"/></svg>"##,
+        "crypto" => &[
+            r##"<rect x="3" y="7" width="10" height="6.5" rx="1.6"/><path d="M5.4 7V5.2a2.6 2.6 0 0 1 5.2 0V7"/>"##,
+            r##"<circle cx="5.6" cy="10.4" r="2.6"/><path d="M7.4 8.6L13 3M10.6 5.4l1.3 1.3M12 4l1.3 1.3"/>"##,
+            r##"<rect x="3" y="2.5" width="10" height="7.5" rx="1.2"/><path d="M5 5.2h6M5 7.4h4M6.4 10v3.2l1.6-1 1.6 1V10"/>"##,
+            r##"<path d="M6 2.6L5 13.4M11 2.6L10 13.4M2.8 6h10.4M2.2 10.2h10.4"/>"##,
+            r##"<circle cx="8" cy="8" r="5.4"/><path d="M5.6 8.2l1.7 1.7 3.2-3.6"/>"##,
+        ],
+        "infosec" => &[
+            r##"<path d="M8 2l5 1.9v4.6c0 3-2.1 4.7-5 5.5-2.9-.8-5-2.5-5-5.5V3.9L8 2z"/><path d="M5.9 8.1l1.5 1.5 2.8-3"/>"##,
+            r##"<path d="M1.8 8S4 4.2 8 4.2 14.2 8 14.2 8 12 11.8 8 11.8 1.8 8 1.8 8z"/><circle cx="8" cy="8" r="1.9"/>"##,
+            r##"<path d="M8.6 1.9L4.1 9h3.3l-.8 5.1L11.9 7H8.5z"/>"##,
+            r##"<rect x="2.2" y="3" width="11.6" height="10" rx="1.2"/><path d="M2.2 6.6h11.6M2.2 10h11.6M5.6 3v3.6M10.4 6.6V10M5.6 10v3"/>"##,
+            r##"<rect x="2.6" y="2.6" width="10.8" height="10.8" rx="2.4"/><circle cx="8" cy="7.2" r="1.9"/><path d="M8 9.1v2.6"/>"##,
+        ],
+        "med" => &[
+            r##"<path d="M1.8 9h3l1.4-4.2 2.8 8.4L11 9h3.2"/>"##,
+            r##"<path d="M6.4 3.4l6.2 6.2a2.2 2.2 0 0 1-3.1 3.1L3.3 6.5a2.2 2.2 0 0 1 3.1-3.1z"/><path d="M5 6.6l4.4 4.4"/>"##,
+            r##"<path d="M4 2.6v4a3 3 0 0 0 6 0v-4"/><path d="M7 9.6v2.2a2.2 2.2 0 0 0 4.4 0v-1.2"/><circle cx="11.4" cy="9" r="1.6"/>"##,
+            r##"<rect x="2.2" y="5" width="11.6" height="8" rx="1.4"/><path d="M5.8 5V3.4h4.4V5M8 7.6v3M6.5 9.1h3"/>"##,
+            r##"<circle cx="8" cy="8" r="5.6"/><path d="M5.2 10.8a3.6 3.6 0 0 1 0-5.6M10.8 5.2a3.6 3.6 0 0 1 0 5.6"/><path d="M8 5.8v2.4l1.6 1"/>"##,
+        ],
+        "edu" => &[
+            r##"<path d="M8 4.3C6.6 3.3 4.8 2.9 3 3.1v8.8c1.8-.2 3.6.2 5 1.2 1.4-1 3.2-1.4 5-1.2V3.1c-1.8-.2-3.6.2-5 1.2z"/><path d="M8 4.3v8.8"/>"##,
+            r##"<path d="M1.9 6.4L8 3.5l6.1 2.9L8 9.3z"/><path d="M4.7 7.8v3c0 .9 1.5 1.6 3.3 1.6s3.3-.7 3.3-1.6v-3"/>"##,
+            r##"<path d="M2.6 13.4l.8-3.2 7-7a1.4 1.4 0 0 1 2 2l-7 7z"/><path d="M9.4 4.2l2.4 2.4"/>"##,
+            r##"<rect x="2.2" y="2.8" width="11.6" height="8.6" rx="1.2"/><path d="M5 9V6.4M8 9V4.6M11 9V7.4"/>"##,
+            r##"<path d="M8 2.2a4 4 0 0 0-2.4 7.2v1.3h4.8V9.4A4 4 0 0 0 8 2.2z"/><path d="M6.6 13.3h2.8"/>"##,
+        ],
+        "bio" => &[
+            r##"<path d="M5 2c0 4.2 6 5.8 6 10"/><path d="M11 2c0 4.2-6 5.8-6 10"/><path d="M5.7 5h4.6M5.7 9h4.6"/>"##,
+            r##"<circle cx="8" cy="8" r="5.6"/><circle cx="6.4" cy="7.2" r="1.3"/><path d="M9.6 9.8c.7 0 1.2.5 1.2 1.2"/>"##,
+            r##"<path d="M6 13h6.4"/><path d="M8 13V9.4a2.8 2.8 0 1 1 3.2 0V13"/><path d="M6.2 4.4l2.4 2.4"/>"##,
+            r##"<path d="M13 3C7.4 3 3.4 5.6 3.4 10c0 1.6.9 3 2.3 3 4.2 0 7.3-4 7.3-10z"/><path d="M3.6 13c1.6-2.6 3.8-4.6 6.6-5.8"/>"##,
+            r##"<circle cx="8" cy="8.4" r="5.2"/><path d="M4.6 5.4c1.2.8 2.4.4 3.4 1.2s2 .6 3.2 0"/>"##,
+        ],
+        "math" => &[
+            r##"<path d="M2.2 2v11.8H14"/><path d="M3.6 11.4c2.2 0 2.6-7 4.8-7s2 7 4.2 7"/>"##,
+            r##"<path d="M5.2 3.2h7l-4.2 4.8 4.2 4.8h-7"/>"##,
+            r##"<path d="M3.8 5.6h8.4M6.4 5.6l-.9 6.6M9.9 5.6l-.9 6.6"/>"##,
+            r##"<rect x="2.4" y="3.4" width="11.2" height="9.2" rx="1"/><path d="M6.2 3.4v9.2M9.8 3.4v9.2M2.4 8h11.2"/>"##,
+            r##"<path d="M2.4 10.8l5.6-7 5.6 7z"/><circle cx="8" cy="9.2" r="1.5"/>"##,
+        ],
+        "phys" => &[
+            r##"<path d="M1.5 8c1.4 0 1.4-4.6 2.8-4.6S5.7 12.6 7.1 12.6 8.5 8 9.9 8s1.4 4.6 2.8 4.6"/>"##,
+            r##"<circle cx="8" cy="8" r="1.5"/><ellipse cx="8" cy="8" rx="6" ry="2.6"/><ellipse cx="8" cy="8" rx="2.6" ry="6"/>"##,
+            r##"<path d="M4.2 3.2v4.8a3.8 3.8 0 0 0 7.6 0V3.2"/><path d="M4.2 6.4h2.4M9.4 6.4h2.4"/>"##,
+            r##"<path d="M8 2.3l5.3 9.2H2.7z"/><path d="M8 9.4v3.2"/>"##,
+            r##"<path d="M4.6 2.4h6.8"/><path d="M8 2.4v6.2"/><circle cx="8" cy="11" r="2.2"/>"##,
+        ],
+        _ => &[
+            r##"<circle cx="3.4" cy="8" r="1.9"/><circle cx="12.4" cy="3.6" r="1.9"/><circle cx="12.4" cy="12.4" r="1.9"/><path d="M5.2 8l5.4-3.2M5.2 8l5.4 3.2"/>"##,
+            r##"<rect x="2.5" y="3" width="11" height="4.2" rx="1"/><rect x="2.5" y="8.8" width="11" height="4.2" rx="1"/><path d="M5 5.1h.01M5 10.9h.01"/>"##,
+            r##"<rect x="2.5" y="3.2" width="11" height="9.6" rx="1.4"/><path d="M4.9 6.2l2 1.8-2 1.8M8.4 10.2h2.8"/>"##,
+            r##"<ellipse cx="8" cy="4.4" rx="5" ry="1.9"/><path d="M3 4.4v7.2c0 1 2.2 1.9 5 1.9s5-.9 5-1.9V4.4"/><path d="M3 8c0 1 2.2 1.9 5 1.9s5-.9 5-1.9"/>"##,
+            r##"<path d="M4.5 11.6h7a2.4 2.4 0 0 0 .3-4.8 3.3 3.3 0 0 0-6.3-.6 2.7 2.7 0 0 0-1 5.4z"/>"##,
+        ],
     }
 }
 
+/// 给图标路径套上统一的 SVG 外壳。stroke 用 currentColor，颜色由标题的 CSS 决定。
+fn icon_svg(paths: &str) -> String {
+    format!(
+        r##"<svg class="hico" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">{}</svg>"##,
+        paths
+    )
+}
+
 /// 不同主题包配不同的示意图：后端看架构和时序，医学看曲线，安全看分层。
-fn figure_kinds(pack_id: &str) -> [u8; 2] {
-    match pack_id {
+fn figure_kinds(pack_id: &str, seed: u64) -> [u8; 2] {
+    let pref: [u8; 2] = match pack_id {
         "crypto" => [1, 3],
         "infosec" => [3, 0],
         "med" => [2, 3],
@@ -816,7 +882,10 @@ fn figure_kinds(pack_id: &str) -> [u8; 2] {
         "math" => [2, 0],
         "phys" => [2, 3],
         _ => [0, 1],
-    }
+    };
+    // 第二张从剩下三种里按 seed 挑：同一主题在不同章节看到的图组合不一样
+    let alt = ((seed >> 5) % 4) as u8;
+    [pref[0], if alt == pref[0] { pref[1] } else { alt }]
 }
 
 /// 四张示意图，按主题包的术语填标签。
@@ -1107,7 +1176,7 @@ fn body_html(
     toc: &mut Vec<(String, String)>,
     ads: &[String],
     figs: &[String],
-    icon: &str,
+    icons: &[String],
 ) -> String {
     let mut out = String::new();
     let mut hcount = 0usize;
@@ -1179,7 +1248,11 @@ fn body_html(
                 let shown = renumber_heading(x, hcount);
                 toc.push((id.clone(), shown.clone()));
                 let lv = if *level <= 2 { 2 } else { 3 };
-                let mark = if lv == 2 { icon } else { "" };
+                let mark: &str = if lv == 2 && !icons.is_empty() {
+                    icons[(hcount - 1) % icons.len()].as_str()
+                } else {
+                    ""
+                };
                 out.push_str(&format!(
                     "<h{lv} id=\"{id}\">{mark}{}</h{lv}>",
                     esc(&shown)
