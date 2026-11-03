@@ -53,6 +53,101 @@ async function api(url, opts) {
   return r.json();
 }
 
+/* ================= 外观 ================= */
+
+const THEME_KEY = "tf-theme";
+const THEME_LABEL = { auto: "跟随系统", light: "浅色", dark: "深色" };
+const darkQuery = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
+
+function normalizeTheme(v) {
+  return v === "light" || v === "dark" ? v : "auto";
+}
+
+// auto 模式下真正用哪套配色，只有系统说了算
+function resolvedTheme(mode) {
+  if (mode === "light" || mode === "dark") return mode;
+  return darkQuery && darkQuery.matches ? "dark" : "light";
+}
+
+function paintTheme(mode) {
+  const m = normalizeTheme(mode);
+  const dark = resolvedTheme(m) === "dark";
+  const root = document.documentElement;
+  root.dataset.theme = dark ? "dark" : "light";
+  // 单独记一份"用户选的模式"，顶栏图标要靠它区分 跟随系统 / 浅色 / 深色
+  root.dataset.themeMode = m;
+  // 缓存只为了让下次启动首帧不白闪，设置本身以服务端为准
+  try {
+    localStorage.setItem(THEME_KEY, m);
+  } catch (e) {}
+  const btn = $("#themeBtn");
+  if (btn) {
+    const tip = `外观：${THEME_LABEL[m]}（当前${dark ? "深色" : "浅色"}）· 点击切换`;
+    btn.title = tip;
+    btn.setAttribute("aria-label", tip);
+  }
+  const sel = $("#setTheme");
+  if (sel) sel.value = m;
+  return m;
+}
+
+// 顶栏按钮：跟随系统 → 固定成与当前相反的配色 → 另一种 → 回到跟随系统
+async function cycleTheme() {
+  const cur = normalizeTheme(state.settings.appearance || document.documentElement.dataset.themeMode);
+  const next =
+    cur === "auto" ? (resolvedTheme("auto") === "dark" ? "light" : "dark") : cur === "light" ? "dark" : "auto";
+  state.settings.appearance = paintTheme(next);
+  try {
+    state.settings = await api("/api/settings", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ appearance: next }),
+    });
+    paintTheme(state.settings.appearance);
+  } catch (e) {
+    toast("外观已切换，但没能保存：" + e.message, true);
+  }
+}
+
+/* ================= 自定义图标 ================= */
+
+const DEFAULT_LOGO = "/assets/app/logo.png";
+
+// 空字符串 = 用自带图标；有值就用服务端给的 /brand/logo.xxx?v=...
+function applyLogo(url) {
+  const src = url || DEFAULT_LOGO;
+  state.settings.logo = url || "";
+  $("#brandLogo").src = src;
+  $("#logoPreview").src = src;
+  $("#favicon").href = src;
+  // 用的就是自带图标时，"恢复默认"没有意义
+  $("#logoReset").disabled = !url;
+}
+
+async function uploadLogo(file) {
+  if (!file) return;
+  if (file.size > 2 * 1024 * 1024) return toast("图标不要超过 2 MB", true);
+  const fd = new FormData();
+  fd.append("file", file, file.name);
+  try {
+    const res = await api("/api/logo", { method: "POST", body: fd });
+    applyLogo(res.logo);
+    toast("图标已更新");
+  } catch (e) {
+    toast("上传失败：" + e.message, true);
+  }
+}
+
+async function resetLogo() {
+  try {
+    const res = await api("/api/logo", { method: "DELETE" });
+    applyLogo(res.logo);
+    toast("已恢复默认图标");
+  } catch (e) {
+    toast("恢复失败：" + e.message, true);
+  }
+}
+
 /* ================= 加载 ================= */
 
 async function boot() {
@@ -67,10 +162,12 @@ async function boot() {
     state.sites = sites;
     state.packs = packs;
     state.settings = settings;
+    // 服务端才是准的：缓存里可能是上一次会话的旧选择
+    paintTheme(settings.appearance);
+    applyLogo(settings.logo);
     renderShelf();
     renderSites();
     renderSettings();
-    $("#dataDir").textContent = settings.data_dir || "—";
   } catch (e) {
     toast("加载失败：" + e.message, true);
   }
@@ -120,7 +217,7 @@ function renderShelf() {
     .join("");
 
   if (list.length === 0 && state.books.length > 0) {
-    $("#bookGrid").innerHTML = `<p style="color:#8b95a5;font-size:13px;padding:20px 0">没有匹配「${esc(state.filter)}」的书</p>`;
+    $("#bookGrid").innerHTML = `<p style="color:var(--ink3);font-size:13px;padding:20px 0">没有匹配「${esc(state.filter)}」的书</p>`;
   }
 }
 
@@ -229,8 +326,16 @@ function renderSites() {
 
 function renderSettings() {
   const s = state.settings;
+  // 桌面模式给一个"在浏览器中打开"；纯网页模式给一个真正的退出入口
+  const web = s.mode === "web";
+  $("#rowOpenBrowser").classList.toggle("hidden", web);
+  $("#rowQuit").classList.toggle("hidden", !web);
+  // 热键和托盘是桌面窗口的能力，网页模式下没有窗口可唤，露出来只会让人白改
+  $("#rowHotkey").classList.toggle("hidden", web);
+  $("#rowTray").classList.toggle("hidden", web);
   $("#setSite").innerHTML = state.sites.map((x) => `<option value="${x.id}">${esc(x.name)}</option>`).join("");
   $("#setPack").innerHTML = state.packs.map((x) => `<option value="${x.id}">${esc(x.name)}</option>`).join("");
+  $("#setTheme").value = normalizeTheme(s.appearance);
   $("#setSite").value = s.default_site || "csdn";
   $("#setPack").value = s.default_pack || "cs";
   $("#setBoss").value = s.boss_url || "";
@@ -239,15 +344,42 @@ function renderSettings() {
   $("#setTray").checked = s.tray !== false;
   $("#setKeys").checked = s.reader_keys !== false;
   $("#setPort").value = s.port || 7317;
+
+  // 数据目录：环境变量指定时不给改，否则没法保证下次启动还认这个位置
+  $("#setDataDir").value = s.data_dir || "";
+  const dirLocked = !!s.data_dir_env;
+  $("#setDataDir").disabled = dirLocked;
+  $("#migrateData").disabled = dirLocked;
+  $("#dataDirHint").textContent = dirLocked
+    ? "当前由环境变量 TOUCHFISH_DATA 指定，界面里不能修改"
+    : "书籍、封面、进度、自定义图标都在这里。填一个空目录即可把现有数据复制过去并立即切换，旧目录里的数据随后清理";
+}
+
+const HOTKEY_MODS = new Set([
+  "ctrl", "control", "alt", "option", "opt", "shift", "win", "super", "meta", "cmd", "command",
+]);
+
+// 和后端 parse_hotkey 保持同一套口径：至少一个修饰键 + 一个主键。
+// 只做形状校验，真正能不能注册上（有没有被别的软件占用）只有系统知道。
+function hotkeyLooksOk(spec) {
+  const parts = spec.split(/[+\-]/).map((p) => p.trim().toLowerCase()).filter(Boolean);
+  if (parts.length < 2) return false;
+  return parts.some((p) => HOTKEY_MODS.has(p)) && parts.some((p) => !HOTKEY_MODS.has(p));
 }
 
 async function saveSettings() {
+  const hotkey = $("#setHotkey").value.trim().toLowerCase() || "ctrl+alt+f";
+  if (!hotkeyLooksOk(hotkey)) {
+    return toast("热键写法不对：需要「修饰键 + 主键」，例如 ctrl+alt+f", true);
+  }
+  const hotkeyChanged = hotkey !== (state.settings.hotkey || "ctrl+alt+f").toLowerCase();
   const body = {
+    appearance: $("#setTheme").value,
     default_site: $("#setSite").value,
     default_pack: $("#setPack").value,
     boss_url: $("#setBoss").value,
     pause_on_blur: $("#setBlur").checked,
-    hotkey: $("#setHotkey").value.trim() || "ctrl+alt+f",
+    hotkey,
     tray: $("#setTray").checked,
     reader_keys: $("#setKeys").checked,
     port: Number($("#setPort").value) || 7317,
@@ -259,7 +391,9 @@ async function saveSettings() {
       body: JSON.stringify(body),
     });
     state.settings = next;
-    $("#saveHint").textContent = "已保存";
+    paintTheme(next.appearance);
+    // 热键是运行中重新注册的，不用重启；被别的软件占用时后端会保留旧键
+    $("#saveHint").textContent = hotkeyChanged ? "已保存，热键已生效" : "已保存";
     setTimeout(() => ($("#saveHint").textContent = ""), 2200);
   } catch (e) {
     toast("保存失败：" + e.message, true);
@@ -286,6 +420,45 @@ document.addEventListener("DOMContentLoaded", () => {
   boot();
 
   $$(".nv").forEach((b) => b.addEventListener("click", () => showView(b.dataset.view)));
+
+  $("#themeBtn").addEventListener("click", cycleTheme);
+
+  // 桌面窗口里点一下就把同一个书库交给系统浏览器，不必回到命令行。
+  // 后端会先把窗口收起来（和托盘「打开网页页面」一致），所以提示里要说清楚人去哪了。
+  $("#openBrowser").addEventListener("click", async () => {
+    try {
+      const res = await api("/api/open-browser", { method: "POST" });
+      toast("已收起到托盘，并在浏览器中打开 " + res.url);
+    } catch (e) {
+      toast("打开失败：" + e.message, true);
+    }
+  });
+
+  $("#quitApp").addEventListener("click", async () => {
+    if (!confirm("退出后本地服务会停止，这个页面也将无法访问。确定退出？")) return;
+    try {
+      await api("/api/shutdown", { method: "POST" });
+    } catch (e) {
+      // 服务端会先回包再退出，偶尔回包还没读完连接就断了，这里不当作失败
+    }
+    document.body.innerHTML = '<div class="bye">TouchFish 已退出，可以关闭这个标签页。</div>';
+  });
+  // 选了"跟随系统"时，系统在太阳落山后切到深色，这里要跟着变
+  if (darkQuery) {
+    const onSchemeChange = () => {
+      if ((document.documentElement.dataset.themeMode || "auto") === "auto") paintTheme("auto");
+    };
+    if (darkQuery.addEventListener) darkQuery.addEventListener("change", onSchemeChange);
+    else if (darkQuery.addListener) darkQuery.addListener(onSchemeChange);
+  }
+
+  // 阅读页按 D 会把选择写进 localStorage，书库这个标签页跟着切
+  window.addEventListener("storage", (e) => {
+    if (e.key !== "tf-theme") return;
+    const mode = normalizeTheme(e.newValue);
+    state.settings.appearance = mode;
+    paintTheme(mode);
+  });
 
   $("#bookGrid").addEventListener("click", (e) => {
     const card = e.target.closest(".book");
@@ -329,12 +502,71 @@ document.addEventListener("DOMContentLoaded", () => {
   $("#importBtn").addEventListener("click", () => $("#fileInput").click());
   $("#fileInput").addEventListener("change", (e) => importFiles(e.target.files));
 
+  $("#logoPick").addEventListener("click", () => $("#logoInput").click());
+  $("#logoInput").addEventListener("change", (e) => {
+    uploadLogo(e.target.files[0]);
+    // 清空 value，否则连着选同一个文件不会再触发 change
+    e.target.value = "";
+  });
+  $("#logoReset").addEventListener("click", resetLogo);
+
   $("#searchInput").addEventListener("input", (e) => {
     state.filter = e.target.value;
     renderShelf();
   });
 
   $("#saveSettings").addEventListener("click", saveSettings);
+
+  // 热键改坏了也能一键回到默认
+  $("#hotkeyReset").addEventListener("click", () => {
+    $("#setHotkey").value = "ctrl+alt+f";
+  });
+
+  // 外观是全局的，改完立刻生效并落盘：阅读页的 localStorage 监听会跟着切
+  $("#setTheme").addEventListener("change", async (e) => {
+    const mode = normalizeTheme(e.target.value);
+    state.settings.appearance = paintTheme(mode);
+    try {
+      state.settings = await api("/api/settings", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ appearance: mode }),
+      });
+      paintTheme(state.settings.appearance);
+    } catch (err) {
+      toast("外观没能保存：" + err.message, true);
+    }
+  });
+
+  $("#migrateData").addEventListener("click", async () => {
+    const target = $("#setDataDir").value.trim().replace(/^"+|"+$/g, "");
+    if (!target) return toast("先填一个目录，例如 D:\\TouchFish", true);
+    if (target === state.settings.data_dir) return toast("和当前目录一样", true);
+    if (
+      !confirm(
+        `把数据迁移到：\n${target}\n\n会先复制现有书库，成功后清理旧目录里的数据并立即生效。继续？`
+      )
+    )
+      return;
+    const btn = $("#migrateData");
+    btn.disabled = true;
+    btn.textContent = "迁移中…";
+    try {
+      const res = await api("/api/data-dir", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ path: target }),
+      });
+      state.settings.data_dir = res.data_dir;
+      $("#setDataDir").value = res.data_dir;
+      toast("已迁移到 " + res.data_dir);
+    } catch (e) {
+      toast("迁移失败：" + e.message, true);
+    } finally {
+      btn.textContent = "迁移";
+      btn.disabled = !!state.settings.data_dir_env;
+    }
+  });
 
   // 拖拽导入
   let dragDepth = 0;

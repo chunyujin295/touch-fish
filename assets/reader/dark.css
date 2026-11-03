@@ -1,0 +1,132 @@
+/* ============ 深色结构层：只在 <html data-theme="dark"> 下生效 ============
+   这里只负责把各版式里写死的白底、浅灰、边框换成变量；
+   具体用哪套暗色由 sites/dark/<站点>.css 决定（每个皮肤一套）。
+   追加顺序：base → 版式 → sites/all → 本文件 → sites/dark/<id>。 */
+
+:root[data-theme="light"]{color-scheme:light}
+
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  /* 结构色的兜底色，站点深色文件可以逐项覆盖 */
+  --dark-chip:#1f232b;
+  --dark-chip2:#232832;
+  --dark-soft:#1c2028;
+  --dark-line:#2a303a;
+  --dark-line2:#2f3540;
+  --dark-line-soft:#222732;
+  --dark-code:#12151b;
+  --dark-codebar:#1a1e25;
+  --dark-ink-soft:#5b6472;
+  --dark-bg2:#181c23;
+}
+
+/* 站点深色文件缺失时的兜底，保证至少能看清 */
+:root[data-theme="dark"] body{
+  --bg:#0f1115;
+  --card:#181b21;
+  --ink:#e6e9ef;
+  --ink2:#aab3c2;
+  --ink3:#7e8899;
+  --line:#272c36;
+  --as:rgba(255,255,255,.07);
+  --ab:rgba(255,255,255,.18);
+  background:var(--bg);
+  color:var(--ink);
+}
+
+/* ---------- 顶栏 / 公告 ---------- */
+:root[data-theme="dark"] .hd:not(.dk){background:var(--card);border-bottom-color:var(--line)}
+:root[data-theme="dark"] .sbox{background:var(--dark-chip);border-color:var(--dark-line2);color:var(--ink3)}
+:root[data-theme="dark"] .ntc{background:#241f14;border-bottom-color:#352b18;color:#d8b46a}
+:root[data-theme="dark"] .ntc b{background:#a86a12;color:#fff}
+:root[data-theme="dark"] .ntc .x{color:#8a7448}
+
+/* ---------- 标题 / 元信息 ---------- */
+:root[data-theme="dark"] .crumb .sep{color:var(--dark-line2)}
+:root[data-theme="dark"] .mt{border-bottom-color:var(--line)}
+:root[data-theme="dark"] .mt .ro{background:var(--dark-chip2);color:var(--ink2)}
+
+/* ---------- 正文 ---------- */
+:root[data-theme="dark"] .prose{color:var(--ink)}
+:root[data-theme="dark"] .prose b,
+:root[data-theme="dark"] .prose strong,
+:root[data-theme="dark"] .prose h3{color:var(--ink)}
+:root[data-theme="dark"] .prose blockquote.q{background:var(--dark-soft);border-left-color:var(--dark-line2);color:var(--ink2)}
+
+/* 代码块本来就是深色，深色模式下再压暗一档 */
+:root[data-theme="dark"] .code{border-color:var(--dark-line);background:var(--dark-code)}
+:root[data-theme="dark"] .code-h{background:var(--dark-codebar);border-bottom-color:var(--dark-line)}
+:root[data-theme="dark"] .code pre{color:#c9d1d9}
+
+/* 表格 */
+:root[data-theme="dark"] .tbl{background:var(--card)}
+:root[data-theme="dark"] .tbl th,
+:root[data-theme="dark"] .tbl td{border-color:var(--dark-line)}
+:root[data-theme="dark"] .tbl th{background:var(--dark-chip);color:var(--ink2)}
+
+/* 标签 / 版权 / 操作 */
+:root[data-theme="dark"] .tags a,
+:root[data-theme="dark"] .tagp a{background:var(--dark-chip2);color:var(--ink2)}
+:root[data-theme="dark"] .cpr{border-top-color:var(--dark-line)}
+:root[data-theme="dark"] .acts{color:var(--ink2)}
+:root[data-theme="dark"] .acts .act{border-color:var(--dark-line2)}
+
+/* ---------- 评论 ---------- */
+:root[data-theme="dark"] .cmt{border-top-color:var(--dark-line-soft)}
+:root[data-theme="dark"] .ch b{color:var(--ink)}
+:root[data-theme="dark"] .ch .lk{color:var(--dark-ink-soft)}
+:root[data-theme="dark"] .cb p{color:var(--ink2)}
+
+/* ---------- 论坛楼层 ---------- */
+:root[data-theme="dark"] .fl{border-top-color:var(--dark-line-soft)}
+:root[data-theme="dark"] .lf .no,
+:root[data-theme="dark"] .rh .rp,
+:root[data-theme="dark"] .rf{color:var(--dark-ink-soft)}
+:root[data-theme="dark"] .rh b{color:var(--ink)}
+:root[data-theme="dark"] .rx{color:var(--ink2)}
+:root[data-theme="dark"] .replybox{background:var(--card)}
+:root[data-theme="dark"] .replybox .rbh{background:var(--dark-chip);border-bottom-color:var(--line)}
+:root[data-theme="dark"] .replybox .rbb{color:var(--dark-ink-soft)}
+
+/* ---------- 侧栏 / 广告 ---------- */
+:root[data-theme="dark"] .mod-h{border-bottom-color:var(--line)}
+:root[data-theme="dark"] .item .n{background:var(--dark-chip2);color:var(--ink3)}
+:root[data-theme="dark"] .item .em{color:var(--dark-ink-soft)}
+:root[data-theme="dark"] .ad:after{color:var(--dark-ink-soft)}
+:root[data-theme="dark"] .ad-inline{background:var(--dark-soft)}
+
+/* ---------- 翻页 / 页脚 ---------- */
+:root[data-theme="dark"] .pg.off,
+:root[data-theme="dark"] .pgbar .pn.off{background:var(--dark-bg2);color:#4c5563}
+:root[data-theme="dark"] .pg-info,
+:root[data-theme="dark"] .pgbar .lbl,
+:root[data-theme="dark"] .pgbar .nums i{color:var(--dark-ink-soft)}
+:root[data-theme="dark"] .ft-in{color:#6c7686}
+
+/* ---------- 各版式的白卡 ---------- */
+:root[data-theme="dark"] body.ly-blog main,
+:root[data-theme="dark"] body.ly-blog .cm,
+:root[data-theme="dark"] body.ly-forum .post,
+:root[data-theme="dark"] body.ly-forum .cm{background:var(--card)}
+:root[data-theme="dark"] body.ly-forum .post .mt,
+:root[data-theme="dark"] body.ly-forum .cm-h{border-color:var(--line)}
+
+/* 学术版式自己写了一套颜色，这里逐块对齐 */
+:root[data-theme="dark"] body.ly-acad .hd{background:var(--card);border-bottom-color:var(--line)}
+:root[data-theme="dark"] body.ly-acad .prose{color:var(--ink)}
+:root[data-theme="dark"] body.ly-acad .mt{border-bottom-color:var(--line)}
+:root[data-theme="dark"] body.ly-acad .abs{background:var(--card);border-color:var(--dark-line);color:var(--ink2)}
+:root[data-theme="dark"] body.ly-acad .abs .ah{color:var(--ink3)}
+:root[data-theme="dark"] body.ly-acad .abs .kw{color:var(--ink2)}
+:root[data-theme="dark"] body.ly-acad .abs .kw b{color:var(--ink)}
+:root[data-theme="dark"] body.ly-acad .refs{border-top-color:var(--line);color:var(--ink2)}
+:root[data-theme="dark"] body.ly-acad .refs .rh{color:var(--ink)}
+:root[data-theme="dark"] body.ly-acad .cm{background:var(--card);border-color:var(--line)}
+
+/* ---------- 站点细节件里的写死颜色（通用部分） ---------- */
+:root[data-theme="dark"] .ghbar,
+:root[data-theme="dark"] .ghbar .ghpath,
+:root[data-theme="dark"] .ghbar .ghpill{color:var(--ink2)}
+:root[data-theme="dark"] .ghbar .ghpill{border-color:var(--dark-line2)}
+:root[data-theme="dark"] .ghbar .ghbtn{background:var(--dark-chip);border-color:var(--dark-line2);color:var(--ink)}
+:root[data-theme="dark"] .wxhead .wxip{color:var(--dark-ink-soft)}

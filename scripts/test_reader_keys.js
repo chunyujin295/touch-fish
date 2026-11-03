@@ -3,7 +3,7 @@
 // 没有浏览器自动化可用（headless 在这台机器上彻底失效），
 // 所以把页面里那段脚本抽出来，套一个最小 DOM 桩，直接按键验证去了哪里。
 //
-//   node tools/test_reader_keys.js <页面 HTML 文件>
+//   node scripts/test_reader_keys.js <页面 HTML 文件>
 //
 // 页面可以用：curl -s "http://127.0.0.1:7317/r/<id>/<ch>?site=csdn&pack=cs" > page.html
 
@@ -12,7 +12,7 @@ const vm = require("vm");
 
 const file = process.argv[2];
 if (!file) {
-  console.error("用法: node tools/test_reader_keys.js <页面 HTML>");
+  console.error("用法: node scripts/test_reader_keys.js <页面 HTML>");
   process.exit(2);
 }
 const html = fs.readFileSync(file, "utf8");

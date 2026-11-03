@@ -1,5 +1,5 @@
 # 生成用于本地验证的样书（EPUB 3 + TXT）。
-# 只是开发用工具，不参与打包：python tools/make_test_book.py
+# 只是开发用工具，不参与打包：python scripts/make_test_book.py
 
 import os
 import zipfile

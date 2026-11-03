@@ -1,0 +1,18 @@
+/* 紫灰底，侧栏与卡片分层更明显 */
+:root[data-theme="dark"] body.s-iphy{
+  --bg:#121016;
+  --card:#1b1822;
+  --ink:#ece8f2;
+  --ink2:#bcb3cc;
+  --ink3:#8e85a0;
+  --line:#2d2938;
+  --as:rgba(177,140,255,.16);
+  --ab:rgba(177,140,255,.34);
+  --dark-chip:#242031;
+  --dark-chip2:#2a2539;
+  --dark-soft:#1f1b29;
+  --dark-line:#2e2939;
+  --dark-line2:#3b3549;
+  --dark-bg2:#1b1822;
+  --a:#9d7bf0;
+}

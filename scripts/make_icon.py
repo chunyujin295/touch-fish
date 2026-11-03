@@ -1,6 +1,6 @@
 # 由 docs/img/logo2.png 生成应用图标。
 #
-#   python tools/make_icon.py
+#   python scripts/make_icon.py
 #
 # 产出：
 #   assets/app/icon.rgba   64×64 裸 RGBA，给 tao 当窗口图标、给 tray-icon 当托盘图标

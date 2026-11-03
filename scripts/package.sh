@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # 打一个可以直接发给别人的压缩包。
 #
-#   tools/package.sh              # 编译 release 并打包
-#   tools/package.sh --no-build   # 复用已有产物，只重新打包
-#   tools/package.sh --clean      # 打包前清掉 dist/
+#   scripts/package.sh              # 编译 release 并打包
+#   scripts/package.sh --no-build   # 复用已有产物，只重新打包
+#   scripts/package.sh --clean      # 打包前清掉 dist/
 #
 # 产物：dist/TouchFish-<版本>-win64.zip
 # 里面只有一个 exe 加一份 README 与样书——资源已经用 include_dir! 编进二进制了，
@@ -33,7 +33,7 @@ for arg in "$@"; do
   case "$arg" in
     --no-build) DO_BUILD=0 ;;
     --clean) CLEAN=1 ;;
-    -h|--help) sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help) sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "未知参数：$arg" >&2; exit 2 ;;
   esac
 done
@@ -83,6 +83,11 @@ mkdir -p "$STAGE"
 
 cp "$BIN" "$STAGE/$EXE"
 cp "$ROOT/README.md" "$STAGE/README.md"
+
+# Windows 上多给一个双击入口：不用记 --server --open，浏览器直接开
+if [ "$TARGET_OS" = "windows" ] && [ -f "$ROOT/scripts/launch-web.bat" ]; then
+  cp "$ROOT/scripts/launch-web.bat" "$STAGE/启动网页版.bat"
+fi
 
 # 样书是可选的：能让人解压后立刻点开看看，不用自己找一本书
 if [ -d "$ROOT/samples" ]; then

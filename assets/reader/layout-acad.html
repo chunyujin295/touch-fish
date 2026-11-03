@@ -1,7 +1,48 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme-mode="__THEME_MODE__" data-theme="__THEME_VALUE__">
 <head>
 <meta charset="utf-8">
+<script>
+/* 主题：以服务端渲染的模式为准 —— 设置里选了深色/浅色，阅读页必须跟着走。
+   localStorage 只用来兜底（没有服务端值时）和跨标签同步；绝不能让一次按键
+   留下的旧值压过设置，否则就会出现"设置里是深色、阅读页还是白底"。 */
+(function () {
+  var q = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
+  var root = document.documentElement;
+  function valid(m){return m === "light" || m === "dark" || m === "auto"}
+  function stored(){
+    try { var v = localStorage.getItem("tf-theme"); return valid(v) ? v : null } catch (e) { return null }
+  }
+  var server = root.dataset.themeMode;
+  var mode = valid(server) ? server : (stored() || "light");
+  root.dataset.themeMode = mode;
+  // 缓存对齐到权威值：旧版本、别的标签页留下的旧选择不会再翻上来
+  try { localStorage.setItem("tf-theme", mode) } catch (e) {}
+  function paint() {
+    var cur = root.dataset.themeMode || "light";
+    var dark = cur === "dark" || (cur === "auto" && q && q.matches);
+    root.dataset.theme = dark ? "dark" : "light";
+  }
+  paint();
+  if (q) {
+    if (q.addEventListener) q.addEventListener("change", paint);
+    else if (q.addListener) q.addListener(paint);
+  }
+  window.addEventListener("storage", function (e) {
+    if (e.key !== "tf-theme" || !valid(e.newValue)) return;
+    root.dataset.themeMode = e.newValue;
+    paint();
+  });
+  // BFCache 回来脚本不会重新执行：只有真走缓存才用本地缓存，正常加载一律听服务端的
+  window.addEventListener("pageshow", function (e) {
+    if (e.persisted) {
+      var m = stored();
+      if (m) root.dataset.themeMode = m;
+    }
+    paint();
+  });
+})();
+</script>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>__TABTITLE__</title>
 <meta name="description" content="__TITLE__">
@@ -14,12 +55,12 @@
 
 <header class="hd __HDCLASS__">
   <div class="hd-in">
-    <a class="lg" href="#"><span class="mk">__INITIAL__</span><b>__SITE__</b><span class="tagx">__SITETAG__</span></a>
+    <a class="lg" href="/"><span class="mk">__INITIAL__</span><b>__SITE__</b><span class="tagx">__SITETAG__</span></a>
     <nav class="nav">__NAV__</nav>
     <div class="hd-r">
       <div class="sbox"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="M16.5 16.5L21 21"/></svg>__SEARCH__</div>
       <span class="write">发帖</span>
-      <span class="av">__AUTHOR_INITIAL__</span>
+      <a class="av" href="/">__AUTHOR_INITIAL__</a>
     </div>
   </div>
 </header>
@@ -76,5 +117,6 @@
 
 <script>__BOSS__</script>
 <script>__LIVE__</script>
+<a class="back" href="/" title="返回" aria-label="返回书库">←</a>
 </body>
 </html>

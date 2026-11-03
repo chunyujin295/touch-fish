@@ -86,6 +86,7 @@ pub fn parse(path: &Path, id: &str, media_dir: &Path) -> Result<Book> {
             Some(Block::Img {
                 src: url,
                 alt: attr(e, b"alt").unwrap_or_default(),
+                cap: String::new(),
             })
         };
         let (blocks, doc_title) = parse_html(&xml, &full, &mut sink);

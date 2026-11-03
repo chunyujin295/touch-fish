@@ -16,9 +16,23 @@ mod txtbook;
 mod web;
 
 use std::net::SocketAddr;
-use std::path::PathBuf;
 use std::sync::Arc;
+use std::sync::OnceLock;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+/// 桌面壳注册给网页层的两个钩子。
+///
+/// 书库页面里的「在浏览器中打开」和改热键，都需要窗口配合，但 web 层不该知道
+/// tao / wry 的存在（纯网页模式根本没有窗口）。桌面壳启动时把自己的能力注册进来，
+/// 没注册就说明当前是 `--server` 模式，调用方按"没有窗口"处理即可。
+pub(crate) struct UiHooks {
+    /// 把窗口收起来（本来就没开时什么都不做）
+    pub hide_window: Box<dyn Fn() + Send + Sync>,
+    /// 换一个全局热键，立即生效
+    pub set_hotkey: Box<dyn Fn(String) + Send + Sync>,
+}
+
+pub(crate) static UI_HOOKS: OnceLock<UiHooks> = OnceLock::new();
 
 /// 当前 Unix 时间戳（秒）
 pub fn now() -> i64 {
@@ -28,30 +42,17 @@ pub fn now() -> i64 {
         .unwrap_or(0)
 }
 
-fn data_dir() -> PathBuf {
-    if let Ok(p) = std::env::var("TOUCHFISH_DATA") {
-        return PathBuf::from(p);
-    }
+/// 用系统默认浏览器打开地址。桌面包里的托盘菜单也要走这个入口，
+/// 否则"打开网页页面"就得再抄一份 CREATE_NO_WINDOW 的 cmd 调用。
+pub(crate) fn open_browser(url: &str) {
     #[cfg(windows)]
     {
-        if let Ok(appdata) = std::env::var("APPDATA") {
-            return PathBuf::from(appdata).join("TouchFish");
-        }
-    }
-    #[cfg(not(windows))]
-    {
-        if let Ok(home) = std::env::var("HOME") {
-            return PathBuf::from(home).join(".local/share/touch-fish");
-        }
-    }
-    PathBuf::from("./data")
-}
-
-fn open_browser(url: &str) {
-    #[cfg(windows)]
-    {
+        use std::os::windows::process::CommandExt;
+        // 别让 cmd 的黑色控制台闪一下——尤其在桌面窗口里点"在浏览器中打开"时很显眼
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
         let _ = std::process::Command::new("cmd")
             .args(["/c", "start", "", url])
+            .creation_flags(CREATE_NO_WINDOW)
             .spawn();
     }
     #[cfg(target_os = "macos")]
@@ -92,10 +93,15 @@ fn probe(port: u16) -> bool {
     got.contains("\"version\"")
 }
 
-fn router_blocking(store: Arc<library::Store>, port: u16, ready: impl FnOnce()) -> anyhow::Result<()> {
+fn router_blocking(
+    store: Arc<library::Store>,
+    port: u16,
+    web_mode: bool,
+    ready: impl FnOnce(),
+) -> anyhow::Result<()> {
     let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build()?;
     rt.block_on(async move {
-        let app = web::router(store);
+        let app = web::router(store, port, web_mode);
         let addr = SocketAddr::from(([127, 0, 0, 1], port));
         let listener = tokio::net::TcpListener::bind(addr).await?;
         ready();
@@ -110,7 +116,7 @@ fn spawn_server(store: Arc<library::Store>, port: u16) -> anyhow::Result<()> {
     std::thread::Builder::new()
         .name("touchfish-http".into())
         .spawn(move || {
-            let res = router_blocking(store, port, || {
+            let res = router_blocking(store, port, false, || {
                 let _ = tx.send(Ok(()));
             });
             if let Err(e) = res {
@@ -128,7 +134,8 @@ fn main() -> anyhow::Result<()> {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let has = |f: &str| args.iter().any(|a| a == f);
 
-    let data = data_dir();
+    // 目录位置可能来自 TOUCHFISH_DATA，也可能是设置里迁移过、记在指针文件里的
+    let data = library::data_dir();
     std::fs::create_dir_all(&data)?;
     let store = Arc::new(library::Store::new(data.clone()));
 
@@ -143,6 +150,14 @@ fn main() -> anyhow::Result<()> {
 
     // 纯服务模式：给浏览器用、给调试用、给无 GUI 的环境用
     if has("--server") || has("--no-gui") {
+        // 已经有一个实例（桌面窗口或上一次网页版）：只把浏览器叫起来就退出，
+        // 这样双击启动脚本两次也不会报"端口被占用"
+        if probe(port) {
+            if has("--open") {
+                open_browser(&url);
+            }
+            return Ok(());
+        }
         println!();
         println!("  TouchFish  v{}", env!("CARGO_PKG_VERSION"));
         println!("  数据目录  {}", data.display());
@@ -150,7 +165,7 @@ fn main() -> anyhow::Result<()> {
         println!("  按 Ctrl+C 退出");
         println!();
         let hook_url = url.clone();
-        return router_blocking(store, port, move || {
+        return router_blocking(store, port, true, move || {
             if has("--open") {
                 open_browser(&hook_url);
             }

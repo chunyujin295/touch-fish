@@ -33,16 +33,33 @@ pub enum Block {
     },
     /// 标题，level 1..=6
     H { level: u8, x: String },
-    /// 引用
-    Q { x: String },
+    /// 引用。cite 是出处那行小字（`—— 《xxx》`、`—— 某文档`），空字符串表示不显示
+    Q {
+        x: String,
+        #[serde(default)]
+        cite: String,
+    },
     /// 代码块
     Code { x: String, lang: String },
     /// 列表
     List { ordered: bool, items: Vec<String> },
     /// 图片，src 是站内绝对路径 /media/...
-    Img { src: String, alt: String },
-    /// 表格
-    Table { head: Vec<String>, rows: Vec<Vec<String>> },
+    Img {
+        src: String,
+        alt: String,
+        /// 图注：figcaption 原文，或渲染层补的「图 N」说明
+        #[serde(default)]
+        cap: String,
+    },
+    /// 表格。cap 是表注，多数技术文章都带「表 1：…」
+    Table {
+        head: Vec<String>,
+        rows: Vec<Vec<String>>,
+        #[serde(default)]
+        cap: String,
+    },
+    /// 小字注释：脚注、数据来源、编辑说明这类，字号比正文小一档
+    Small { x: String },
     /// 分隔线
     Hr,
 }
@@ -61,7 +78,21 @@ impl Block {
     }
     /// 引用块
     pub fn q(x: impl Into<String>) -> Block {
-        Block::Q { x: x.into() }
+        Block::Q {
+            x: x.into(),
+            cite: String::new(),
+        }
+    }
+    /// 带出处的引用块
+    pub fn q_cite(x: impl Into<String>, cite: impl Into<String>) -> Block {
+        Block::Q {
+            x: x.into(),
+            cite: cite.into(),
+        }
+    }
+    /// 小字注释
+    pub fn small(x: impl Into<String>) -> Block {
+        Block::Small { x: x.into() }
     }
 }
 
@@ -77,11 +108,13 @@ impl Chapter {
         self.blocks
             .iter()
             .map(|b| match b {
-                Block::P { x, .. } | Block::H { x, .. } | Block::Q { x } => x.chars().count(),
+                Block::P { x, .. } | Block::H { x, .. } | Block::Q { x, .. } | Block::Small { x } => {
+                    x.chars().count()
+                }
                 Block::Code { x, .. } => x.chars().count(),
                 Block::List { items, .. } => items.iter().map(|i| i.chars().count()).sum(),
                 Block::Img { .. } | Block::Hr => 0,
-                Block::Table { head, rows } => {
+                Block::Table { head, rows, .. } => {
                     head.iter().map(|c| c.chars().count()).sum::<usize>()
                         + rows
                             .iter()

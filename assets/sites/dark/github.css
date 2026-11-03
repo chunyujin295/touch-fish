@@ -1,0 +1,22 @@
+/* GitHub 官方夜间配色：深蓝黑底、细边框、亮蓝链接 */
+:root[data-theme="dark"] body.s-github{
+  --bg:#0d1117;
+  --card:#161b22;
+  --ink:#e6edf3;
+  --ink2:#c9d1d9;
+  --ink3:#8b949e;
+  --line:#30363d;
+  --as:rgba(88,166,255,.15);
+  --ab:rgba(88,166,255,.30);
+  --dark-chip:#21262d;
+  --dark-chip2:#262c36;
+  --dark-soft:#1a2029;
+  --dark-line:#30363d;
+  --dark-line2:#3d444d;
+  --dark-code:#0d1117;
+  --dark-codebar:#161b22;
+  --dark-ink-soft:#6e7681;
+  --dark-bg2:#161b22;
+  --a:#4493f8;
+}
+:root[data-theme="dark"] body.s-github .ghbar .ghpath b{color:#58a6ff}

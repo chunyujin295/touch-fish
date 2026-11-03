@@ -1,0 +1,17 @@
+/* 偏冷近黑 + 品牌橙小面积强调 */
+:root[data-theme="dark"] body.s-csdn{
+  --bg:#0f1115;
+  --card:#181b21;
+  --ink:#e6e9ef;
+  --ink2:#aab3c2;
+  --ink3:#7e8899;
+  --line:#272c36;
+  --as:rgba(252,85,49,.14);
+  --ab:rgba(252,85,49,.32);
+  --dark-chip:#1f232b;
+  --dark-chip2:#232832;
+  --dark-soft:#1c2028;
+  --dark-line:#2a303a;
+  --dark-line2:#2f3540;
+  --dark-bg2:#181c23;
+}

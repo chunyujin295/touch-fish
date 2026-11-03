@@ -294,6 +294,13 @@ struct Parser {
     title: Option<String>,
     title_buf: String,
     skip: usize,
+    /// `<cite>` 里的出处：只在 blockquote 内当引用来源，正文里的书名号不当出处
+    in_cite: bool,
+    cite_buf: String,
+    pending_cite: Option<String>,
+    /// `<figcaption>` / `<caption>` 的图注、表注，结束后回填到最近的图/表上
+    in_cap: bool,
+    cap_buf: String,
 }
 
 impl Parser {
@@ -303,6 +310,15 @@ impl Parser {
             return;
         }
         if self.skip > 0 {
+            return;
+        }
+        // 出处 / 图注不能混进正文：它们各自有缓冲区，最后贴到对应的块上
+        if self.in_cite {
+            self.cite_buf.push_str(s);
+            return;
+        }
+        if self.in_cap {
+            self.cap_buf.push_str(s);
             return;
         }
         if self.pre > 0 || !self.open.is_empty() || self.table_depth > 0 || self.list_depth > 0 {
@@ -360,6 +376,18 @@ impl Parser {
             b"h5" => self.open.push("h5"),
             b"h6" => self.open.push("h6"),
             b"blockquote" => self.open.push("q"),
+            // 引用块里的 <cite> 是出处；正文里的 <cite>（书名、作品名）当普通文字
+            b"cite" if self.open.iter().any(|k| *k == "q") => {
+                self.in_cite = true;
+                self.cite_buf.clear();
+            }
+            // 图注 / 表注：先攒着，结束的时候回填到刚才那张图或表上
+            b"figcaption" | b"caption" => {
+                self.in_cap = true;
+                self.cap_buf.clear();
+            }
+            // 顶层的小字（版权、注释、数据来源）单独成块；段落内的小字仍算正文
+            b"small" if self.open.is_empty() => self.open.push("small"),
             b"b" | b"strong" => self.bold += 1,
             b"i" | b"em" => self.ital += 1,
             b"code" | b"tt" | b"kbd" | b"samp" if self.pre == 0 => self.icode += 1,
@@ -465,6 +493,49 @@ impl Parser {
                     self.flush_para(Block::q(""));
                 }
             }
+            b"cite" => {
+                if self.in_cite {
+                    self.in_cite = false;
+                    let c = squash(&self.cite_buf);
+                    if !c.is_empty() {
+                        self.pending_cite = Some(c);
+                    }
+                }
+            }
+            b"figcaption" | b"caption" => {
+                if self.in_cap {
+                    self.in_cap = false;
+                    let c = squash(&self.cap_buf);
+                    if c.is_empty() {
+                        // 空的 figcaption 就不用往下走了
+                    } else {
+                        // 回填到最近的图或表上；中间可能隔了空段落，所以最多往回看 3 个
+                        let mut done = false;
+                        for blk in self.blocks.iter_mut().rev().take(3) {
+                            if done {
+                                break;
+                            }
+                            match blk {
+                                Block::Img { cap, .. } if cap.is_empty() => {
+                                    *cap = c.clone();
+                                    done = true;
+                                }
+                                Block::Table { cap, .. } if cap.is_empty() => {
+                                    *cap = c.clone();
+                                    done = true;
+                                }
+                                _ => {}
+                            }
+                        }
+                    }
+                }
+            }
+            b"small" => {
+                self.open.retain(|k| *k != "small");
+                if self.open.is_empty() {
+                    self.flush_para(Block::small(""));
+                }
+            }
             b"b" | b"strong" => self.bold = self.bold.saturating_sub(1),
             b"i" | b"em" => self.ital = self.ital.saturating_sub(1),
             b"code" | b"tt" | b"kbd" | b"samp" => self.icode = self.icode.saturating_sub(1),
@@ -516,7 +587,11 @@ impl Parser {
                     } else {
                         Vec::new()
                     };
-                    self.blocks.push(Block::Table { head, rows });
+                    self.blocks.push(Block::Table {
+                        head,
+                        rows,
+                        cap: String::new(),
+                    });
                 }
             }
             _ => {}
@@ -532,7 +607,12 @@ impl Parser {
         }
         match proto {
             Block::P { .. } => self.blocks.push(Block::rich(x, inl)),
-            Block::Q { .. } => self.blocks.push(Block::q(x)),
+            Block::Q { .. } => {
+                // 出处只跟着紧邻的那一条引用走，取完就清掉
+                let cite = self.pending_cite.take().unwrap_or_default();
+                self.blocks.push(Block::q_cite(x, cite));
+            }
+            Block::Small { .. } => self.blocks.push(Block::small(x)),
             _ => {}
         }
     }

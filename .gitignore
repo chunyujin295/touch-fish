@@ -6,3 +6,6 @@
 .DS_Store
 .idea/
 .vscode/
+
+# WorkBuddy 的本地 agent 配置，跟项目无关
+.codebuddy/

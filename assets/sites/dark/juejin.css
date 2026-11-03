@@ -1,0 +1,18 @@
+/* 深蓝底 + 掘金蓝，侧栏比正文再深一档 */
+:root[data-theme="dark"] body.s-juejin{
+  --bg:#0d1016;
+  --card:#161a21;
+  --ink:#e2e8f2;
+  --ink2:#a6b3c6;
+  --ink3:#79879c;
+  --line:#242b36;
+  --as:rgba(76,154,255,.15);
+  --ab:rgba(76,154,255,.32);
+  --dark-chip:#1b2130;
+  --dark-chip2:#202738;
+  --dark-soft:#171d28;
+  --dark-line:#252d3c;
+  --dark-line2:#2f3a4d;
+  --dark-bg2:#161b25;
+  --a:#3d8bfd;
+}

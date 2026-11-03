@@ -21,6 +21,7 @@ pub fn page(
     boss_url: &str,
     page_no: usize,
     reader_keys: bool,
+    appearance: &str,
 ) -> String {
     let sites = load("data/sites.json");
     let packs = load("data/packs.json");
@@ -48,6 +49,17 @@ pub fn page(
     let sid = s(&site, "id").to_string();
     css.push_str(&asset_text("sites/all.css"));
 
+    // 阅读页跟着设置里的外观走：auto 由页面里的 matchMedia 落地。
+    // 深色层始终带上——阅读页按 D 可以临时切深色，浅色渲染的页面也要能切过去。
+    let theme_mode = match appearance {
+        "dark" => "dark",
+        "light" => "light",
+        _ => "auto",
+    };
+    css.push_str(&asset_text("reader/dark.css"));
+    // 每个皮肤一套自己的暗色，最后加载，覆盖结构层的兜底变量
+    css.push_str(&asset_text(&format!("sites/dark/{sid}.css")));
+
     // ---- 噪声种子：书 + 章 + 皮肤 + 主题包 ----
     let seed = seed_of(&[
         &book.id,
@@ -60,7 +72,10 @@ pub fn page(
 
     let chapter = book.chapters.get(idx);
     let chapter_title = chapter.map(|c| c.title.clone()).unwrap_or_default();
-    let blocks = chapter.map(|c| c.blocks.clone()).unwrap_or_default();
+    let raw = chapter.map(|c| c.blocks.clone()).unwrap_or_default();
+    // 把「一个标题 + 几千个碎段」的小说骨架重排成文章骨架；
+    // 原文结构本来就丰富的书会原样返回，不会被揉第二遍
+    let blocks = shape_blocks(&raw, &chapter_title, seed);
 
     // ---- 正文 + 目录 ----
     // 分页伪装：CSDN / 博客园的长文本来就是一页一页翻的，sites.json 里 paging 决定每页多少块
@@ -72,20 +87,14 @@ pub fn page(
     let page_blocks = &blocks[b0..b1];
 
     let mut toc: Vec<(String, String)> = Vec::new();
-    let body = body_html(page_blocks, &chapter_title, &mut toc);
+    // 文中广告：跟顶部那张大卡用不同的一条，避免同一页里同一句广告出现两次
+    let mid_ads = mid_ads_html(&pack);
+    let body = body_html(page_blocks, &chapter_title, &mut toc, &mid_ads);
 
     // ---- 元信息 ----
     let author = pick_author(&pack, &mut rng, &book.author);
     // 阅读量必须跟篇幅挂钩：一段两百字的短帖配八千阅读，比任何排版破绽都显眼
-    let words: usize = blocks
-        .iter()
-        .map(|b| match b {
-            Block::P { x, .. } | Block::H { x, .. } | Block::Q { x } => x.chars().count(),
-            Block::List { items, .. } => items.iter().map(|i| i.chars().count()).sum(),
-            Block::Code { x, .. } => x.chars().count() / 3,
-            _ => 0,
-        })
-        .sum();
+    let words: usize = blocks.iter().map(block_chars).sum();
     let read = ((words * rng.range(12, 34)) / 10).clamp(160, 480_000);
     let like = (read / rng.range(18, 60)).max(3);
     // 收藏一定少于点赞，不能出现两个数字一模一样这种破绽
@@ -188,6 +197,16 @@ pub fn page(
     let mut m: HashMap<&str, String> = HashMap::new();
     m.insert("TABTITLE", format!("{} - {}", esc(&title), s(&site, "name")));
     m.insert("CSS", css);
+    m.insert("THEME_MODE", theme_mode.to_string());
+    // dark/light 直接落到 HTML 上，禁 JS 也能正确上色；auto 交给片段里的 matchMedia
+    m.insert(
+        "THEME_VALUE",
+        if theme_mode == "auto" {
+            String::new()
+        } else {
+            theme_mode.to_string()
+        },
+    );
     m.insert("ACCENT", accent.clone());
     m.insert("ACCENTHEX", accent.trim_start_matches('#').to_string());
     m.insert("INITIAL", initial(s(&site, "name")));
@@ -374,8 +393,13 @@ fn nav_html(site: &Value) -> String {
 fn crumb_html(pack: &Value, site: &Value) -> String {
     let mut parts: Vec<String> = Vec::new();
     if let Some(a) = pack.get("crumb").and_then(|v| v.as_array()) {
-        for x in a.iter().filter_map(|x| x.as_str()) {
-            parts.push(format!("<span>{}</span>", esc(x)));
+        for (i, x) in a.iter().filter_map(|x| x.as_str()).enumerate() {
+            if i == 0 {
+                // 面包屑第一项就是「首页」：真实站点的这条链能点，点了回书库
+                parts.push(format!("<a href=\"/\">{}</a>", esc(x)));
+            } else {
+                parts.push(format!("<span>{}</span>", esc(x)));
+            }
         }
     }
     if parts.is_empty() {
@@ -523,8 +547,29 @@ fn ads_html(pack: &Value) -> (String, String) {
     (top, inline)
 }
 
-fn comments_html(pack: &Value, layout: &str, art_ts: i64, rng: &mut Rng) -> String {
-    let list = pack
+/// 文中广告：夹在段落之间的小横条。
+/// 顶部那张大卡已经占了 ads[0]，这里从第二条开始取，同一页里不会重复同一句文案。
+fn mid_ads_html(pack: &Value) -> Vec<String> {
+    let ads = pack
+        .get("ads")
+        .and_then(|v| v.as_array())
+        .cloned()
+        .unwrap_or_default();
+    ads.iter()
+        .skip(1)
+        .filter(|a| !s(a, "t").is_empty())
+        .map(|a| {
+            format!(
+                "<div class=\"ad-mid\"><span class=\"am-tag\">广告</span><div class=\"am-ic\"></div><div class=\"am-x\"><div class=\"adt\">{}</div><div class=\"add\">{}</div></div><a class=\"am-cta\" href=\"#\">{} ›</a></div>",
+                esc(s(a, "t")),
+                esc(s(a, "d")),
+                esc(s(a, "cta"))
+            )
+        })
+        .collect()
+}
+
+fn comments_html(pack: &Value, layout: &str, art_ts: i64, rng: &mut Rng) -> String {    let list = pack
         .get("comments")
         .and_then(|v| v.as_array())
         .cloned()
@@ -609,7 +654,31 @@ fn pager(book: &Book, idx: usize, site: &str, pack: &str) -> String {
 
 /* ================= 正文 ================= */
 
-/// 把整章切成每页 per 个块。per = 0 表示不分页。
+/// 一块大概多少字。分页和阅读量都用它，避免两套口径。
+fn block_chars(b: &Block) -> usize {
+    match b {
+        Block::P { x, .. } | Block::H { x, .. } | Block::Q { x, .. } | Block::Small { x } => {
+            x.chars().count()
+        }
+        Block::List { items, .. } => items.iter().map(|i| i.chars().count()).sum(),
+        Block::Code { x, .. } => x.chars().count(),
+        Block::Table { head, rows, .. } => {
+            head.iter().map(|c| c.chars().count()).sum::<usize>()
+                + rows
+                    .iter()
+                    .flat_map(|r| r.iter())
+                    .map(|c| c.chars().count())
+                    .sum::<usize>()
+        }
+        Block::Img { .. } | Block::Hr => 0,
+    }
+}
+
+/// 每页大约多少字。真实站点的分页是跟着篇幅走的，不是固定块数：
+/// 一页三千字上下，一章一两万字就是六七页，跟 CSDN 上的长文对得上。
+const CHARS_PER_PAGE: usize = 3000;
+
+/// 把整章切成每页 per 个块（同时受每页字数约束）。per = 0 表示不分页。
 /// 页尾如果正好压在标题上，就把标题推到下一页——真实分页也极少让标题孤零零留在页底。
 fn paginate(blocks: &[Block], per: usize) -> Vec<(usize, usize)> {
     if per == 0 || blocks.len() <= per {
@@ -618,9 +687,22 @@ fn paginate(blocks: &[Block], per: usize) -> Vec<(usize, usize)> {
     let mut out = Vec::new();
     let mut i = 0;
     while i < blocks.len() {
-        let mut j = (i + per).min(blocks.len());
+        let mut j = i;
+        let mut chars = 0usize;
+        // 先吃块数上限，再看字数够不够一页
+        while j < blocks.len() && j - i < per {
+            chars += block_chars(&blocks[j]);
+            j += 1;
+            if chars >= CHARS_PER_PAGE && j - i >= 3 {
+                break;
+            }
+        }
+        // 页尾压在标题上时把标题推到下一页
         while j < blocks.len() && j > i + 1 && matches!(blocks[j - 1], Block::H { .. }) {
             j -= 1;
+        }
+        if j <= i {
+            j = (i + 1).min(blocks.len());
         }
         out.push((i, j));
         i = j;
@@ -682,18 +764,233 @@ fn page_bar(book_id: &str, idx: usize, site: &str, pack: &str, cur: usize, total
     out
 }
 
-fn body_html(blocks: &[Block], chapter_title: &str, toc: &mut Vec<(String, String)>) -> String {
+/// 小标题池：技术文章的小节名，跟具体内容无关，所以放在渲染层当模板用。
+/// 前面加两位编号，视觉上就是「01 背景与问题」这种结构感。
+const SECTION_TITLES: [&str; 16] = [
+    "背景", "过程", "细节", "分析", "讨论", "小结", "补充", "延伸", "备注", "说明", "变化", "问题",
+    "结果", "方法", "取舍", "其他",
+];
+
+/// 原文里「1」「2」「一」这种纯编号标题没有任何信息量，
+/// 渲染成 <h2>1</h2> 反而更像小说分节，直接换成可读的小节名。
+fn trivial_heading(x: &str) -> bool {
+    let t = x.trim();
+    if t.is_empty() || t.chars().count() > 4 {
+        return false;
+    }
+    t.chars().all(|c| {
+        c.is_ascii_digit()
+            || "一二三四五六七八九十零〇".contains(c)
+            || c == '.'
+            || c == '、'
+            || c == '．'
+    })
+}
+
+/// 章节「文章化」：小说是「一个标题 + 几千个碎段」，技术文章是「小标题 + 中等段落 + 引用」。
+/// 这里只做不改变文字的重排：
+///   1. 相邻超短段落合并——一行一句的对话式排版是最容易被一眼看穿的特征
+///   2. 没有小标题的长章节按段落密度插小标题（模板标题，和摘要卡同一个级别）
+///   3. 每个小节挑一段做成引用块，把版面切开
+///   4. 「注：」「资料来源：」这类短段降成小字
+/// 原文结构本来就丰富的书直接原样返回，不再揉第二遍。
+fn shape_blocks(blocks: &[Block], chapter_title: &str, seed: u64) -> Vec<Block> {
+    let is_p = |b: &Block| matches!(b, Block::P { .. });
+    let ps = blocks.iter().filter(|b| is_p(b)).count();
+    let hs = blocks
+        .iter()
+        .filter(|b| matches!(b, Block::H { x, .. } if !squash_eq(x, chapter_title)))
+        .count();
+    let rich = blocks
+        .iter()
+        .filter(|b| {
+            matches!(
+                b,
+                Block::Q { .. }
+                    | Block::List { .. }
+                    | Block::Table { .. }
+                    | Block::Code { .. }
+                    | Block::Img { .. }
+            )
+        })
+        .count();
+    // 段落太少、或本来就有足够的小标题 / 结构化元素，就别动它
+    if ps < 10 || hs * 8 >= ps || rich * 12 >= ps {
+        return blocks.to_vec();
+    }
+
+    // ---- 1. 合并碎段 ----
+    let mut merged: Vec<Block> = Vec::with_capacity(blocks.len());
+    let mut run = String::new();
+    for b in blocks {
+        match b {
+            // 只合并纯文本短段：带行内格式的合并会把粗体/链接弄丢
+            Block::P { x, inl } if inl.is_empty() && x.chars().count() <= 70 => {
+                run.push_str(x);
+                if run.chars().count() >= 150 {
+                    merged.push(Block::p(std::mem::take(&mut run)));
+                }
+            }
+            _ => {
+                if !run.is_empty() {
+                    merged.push(Block::p(std::mem::take(&mut run)));
+                }
+                merged.push(b.clone());
+            }
+        }
+    }
+    if !run.is_empty() {
+        merged.push(Block::p(run));
+    }
+
+    // ---- 2. 短注释降为小字 ----
+    for i in 0..merged.len() {
+        let note = match &merged[i] {
+            Block::P { x, inl } if inl.is_empty() => {
+                let t = x.trim_start();
+                let is_note = x.chars().count() <= 90
+                    && (t.starts_with("注：")
+                        || t.starts_with("注:")
+                        || t.starts_with("资料来源")
+                        || t.starts_with("数据来源")
+                        || t.starts_with("（注")
+                        || t.starts_with("(")
+                        || t.starts_with("编者按"));
+                if is_note {
+                    Some(x.clone())
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        };
+        if let Some(t) = note {
+            merged[i] = Block::small(t);
+        }
+    }
+
+    // ---- 3. 小标题：先改写原文的无信息量编号，再按段落密度补 ----
+    let base = (seed % SECTION_TITLES.len() as u64) as usize;
+    let mut sec_idx = 0usize;
+    for b in merged.iter_mut() {
+        if let Block::H { x, .. } = b {
+            if squash_eq(x, chapter_title) {
+                continue;
+            }
+            if trivial_heading(x) {
+                sec_idx += 1;
+                *x = format!(
+                    "{:02} {}",
+                    sec_idx,
+                    SECTION_TITLES[(base + sec_idx) % SECTION_TITLES.len()]
+                );
+            }
+        }
+    }
+
+    // ---- 4. 一边按密度补小标题，一边挑段落做引用 ----
+    let ps_now = merged.iter().filter(|b| is_p(b)).count();
+    let mut rng = Rng::new(seed ^ 0x5f37_9e11);
+    let mut out: Vec<Block> = Vec::with_capacity(merged.len() + 4);
+    let mut sec_p = 0usize; // 本小节已经走过多少段
+    let mut sec_quoted = false;
+    let mut sec_no = 0usize; // 第几节，用来控制引用的稀疏程度
+    let mut n = sec_idx;
+    let mut seen_p = 0usize;
+
+    for b in merged {
+        match &b {
+            Block::H { .. } => {
+                sec_p = 0;
+                sec_quoted = false;
+                sec_no += 1;
+            }
+            Block::P { x, inl } if inl.is_empty() => {
+                // 「一页里只有段落、没有小标题」是最像小说的排法：
+                // 每走 8 段、且后面还留得下 5 段，就补一个小标题
+                if sec_p >= 8 && ps_now - seen_p >= 5 {
+                    n += 1;
+                    out.push(Block::H {
+                        level: 2,
+                        x: format!(
+                            "{:02} {}",
+                            n,
+                            SECTION_TITLES[(base + n) % SECTION_TITLES.len()]
+                        ),
+                    });
+                    sec_p = 0;
+                    sec_quoted = false;
+                }
+                seen_p += 1;
+                sec_p += 1;
+                let len = x.chars().count();
+                // 第 3 段之后、长度合适的叙述才够格当引用，节首那段留给导语
+                // 引用只在每 4 节里出现一次：密集引用比没有引用更像假的
+                if !sec_quoted
+                    && sec_no % 4 == base % 4
+                    && sec_p >= 3
+                    && (60..=220).contains(&len)
+                    && rng.range(0, 100) < 60
+                {
+                    out.push(Block::q(x.clone()));
+                    sec_quoted = true;
+                    continue;
+                }
+            }
+            _ => {}
+        }
+        out.push(b);
+    }
+    out
+}
+
+fn body_html(
+    blocks: &[Block],
+    chapter_title: &str,
+    toc: &mut Vec<(String, String)>,
+    ads: &[String],
+) -> String {
     let mut out = String::new();
     let mut hcount = 0usize;
     let mut skipped_lead = false;
+    let mut pcount = 0usize;
+    let mut led = false;
+
+    // 文中广告的落点：按段落数决定插几条、插在哪，长文才值得打断两次
+    let p_total = blocks
+        .iter()
+        .filter(|b| matches!(b, Block::P { .. }))
+        .count();
+    let mut slots: Vec<usize> = Vec::new();
+    if !ads.is_empty() && p_total >= 5 {
+        if p_total >= 18 {
+            // 长页两条，间隔拉开：贴太近像广告墙
+            slots.push(p_total * 2 / 5);
+            slots.push(p_total * 4 / 5);
+        } else {
+            slots.push(p_total / 2);
+        }
+    }
+    let mut ad_i = 0usize;
 
     for blk in blocks {
         match blk {
             Block::P { x, inl } => {
+                pcount += 1;
+                let mut cls = "";
+                // 首段做成导语：专业文章的开头不会和正文一个字号
+                if !led && x.chars().count() >= 30 {
+                    cls = " class=\"lead\"";
+                    led = true;
+                }
                 if inl.is_empty() {
-                    out.push_str(&format!("<p>{}</p>", esc(x)));
+                    out.push_str(&format!("<p{cls}>{}</p>", esc(x)));
                 } else {
-                    out.push_str(&format!("<p>{}</p>", inline_html(inl)));
+                    out.push_str(&format!("<p{cls}>{}</p>", inline_html(inl)));
+                }
+                if slots.contains(&pcount) && ad_i < ads.len() {
+                    out.push_str(&ads[ad_i]);
+                    ad_i += 1;
                 }
             }
             Block::H { level, x } => {
@@ -705,15 +1002,26 @@ fn body_html(blocks: &[Block], chapter_title: &str, toc: &mut Vec<(String, Strin
                 skipped_lead = true;
                 hcount += 1;
                 let id = format!("s{hcount}");
-                toc.push((id.clone(), x.clone()));
+                // 分页之后每页都从 01 开始编号，不然读者会看到「01 说明 / 09 过程」这种断号
+                let shown = renumber_heading(x, hcount);
+                toc.push((id.clone(), shown.clone()));
                 let lv = if *level <= 2 { 2 } else { 3 };
                 out.push_str(&format!(
                     "<h{lv} id=\"{id}\">{}</h{lv}>",
-                    esc(x)
+                    esc(&shown)
                 ));
             }
-            Block::Q { x } => {
-                out.push_str(&format!("<blockquote class=\"q\">{}</blockquote>", esc(x)));
+            Block::Q { x, cite } => {
+                let c = if cite.is_empty() {
+                    String::new()
+                } else {
+                    format!("<cite>{}</cite>", esc(cite))
+                };
+                out.push_str(&format!(
+                    "<blockquote class=\"q\"><p>{}</p>{}</blockquote>",
+                    esc(x),
+                    c
+                ));
             }
             Block::Code { x, .. } => {
                 out.push_str(&format!(
@@ -729,14 +1037,23 @@ fn body_html(blocks: &[Block], chapter_title: &str, toc: &mut Vec<(String, Strin
                 }
                 out.push_str(&format!("</{tag}>"));
             }
-            Block::Img { src, alt } => {
+            Block::Img { src, alt, cap } => {
+                let figcap = if cap.is_empty() {
+                    String::new()
+                } else {
+                    format!("<figcaption>{}</figcaption>", esc(cap))
+                };
                 out.push_str(&format!(
-                    "<figure class=\"fig\"><img src=\"{}\" alt=\"{}\" loading=\"lazy\"></figure>",
+                    "<figure class=\"fig\"><img src=\"{}\" alt=\"{}\" loading=\"lazy\">{}</figure>",
                     esc(src),
-                    esc(alt)
+                    esc(alt),
+                    figcap
                 ));
             }
-            Block::Table { head, rows } => {
+            Block::Table { head, rows, cap } => {
+                if !cap.is_empty() {
+                    out.push_str(&format!("<div class=\"tblcap\">{}</div>", esc(cap)));
+                }
                 out.push_str("<table class=\"tbl\">");
                 if !head.is_empty() {
                     out.push_str("<thead><tr>");
@@ -755,14 +1072,29 @@ fn body_html(blocks: &[Block], chapter_title: &str, toc: &mut Vec<(String, Strin
                 }
                 out.push_str("</tbody></table>");
             }
+            Block::Small { x } => out.push_str(&format!("<p class=\"sm\">{}</p>", esc(x))),
             Block::Hr => out.push_str("<hr class=\"hr\">"),
         }
     }
     out
 }
 
-fn squash_eq(a: &str, b: &str) -> bool {
-    let norm = |s: &str| -> String {
+/// 把「09 过程」这种章内编号改成页内编号「02 过程」。
+/// 只认「数字 + 空格」前缀，原文自己的标题（没有编号）原样返回。
+fn renumber_heading(x: &str, n: usize) -> String {
+    let t = x.trim_start();
+    let digits: String = t.chars().take_while(|c| c.is_ascii_digit()).collect();
+    if digits.is_empty() || digits.len() > 2 {
+        return x.to_string();
+    }
+    let rest = &t[digits.len()..];
+    match rest.strip_prefix(' ') {
+        Some(r) if !r.trim().is_empty() => format!("{:02} {}", n, r.trim_start()),
+        _ => x.to_string(),
+    }
+}
+
+fn squash_eq(a: &str, b: &str) -> bool {    let norm = |s: &str| -> String {
         s.chars()
             .filter(|c| !c.is_whitespace() && !"，。、；：？！,. ;:?!".contains(*c))
             .collect()
@@ -893,11 +1225,24 @@ fn keys_script(
     p.style.fontSize=v+"px";
     try{localStorage.setItem("tf.fs",v)}catch(e){}
   }
+  function theme(){
+    var r=document.documentElement;
+    var next=(r.dataset.theme==="dark")?"light":"dark";
+    r.dataset.theme=next;
+    r.dataset.themeMode=next;
+    try{localStorage.setItem("tf-theme",next)}catch(e){}
+    // 顺带改全局设置，回书库时也是同一个外观；存不下去也不影响当前页
+    if(window.fetch){
+      window.fetch("/api/settings",{method:"POST",headers:{"content-type":"application/json"},
+        body:JSON.stringify({appearance:next})}).catch(function(){});
+    }
+  }
   function help(){
     var d=document.getElementById("kbd");
     if(d){d.parentNode.removeChild(d);return}
     var rows=[["Esc","立即离开"],["← →","上一页 / 下一页"],["S","换一个皮肤（Shift 反向）"],
-              ["P","换一个主题包（Shift 反向）"],["+ -","正文调大 / 调小"],["H","回书库"],["?","收起这块"]];
+              ["P","换一个主题包（Shift 反向）"],["D","深色 / 浅色切换"],["+ -","正文调大 / 调小"],
+              ["H","回书库"],["?","收起这块"]];
     var html="<b>快捷键</b>";
     for(var i=0;i<rows.length;i++){html+="<div class='kr'><i>"+rows[i][0]+"</i><span>"+rows[i][1]+"</span></div>"}
     html+="<em>这些键只在阅读页生效，不影响浏览器自带的组合键</em>";
@@ -922,6 +1267,7 @@ fn keys_script(
       case "S": nav(cyc(SITES,site,-1),pack); break;
       case "p": nav(site,cyc(PACKS,pack,1)); break;
       case "P": nav(site,cyc(PACKS,pack,-1)); break;
+      case "d": case "D": theme(); break;
       case "+": case "=": fs(1); break;
       case "-": case "_": fs(-1); break;
       case "?": help(); break;
@@ -1027,5 +1373,57 @@ fn utf8_len(b: u8) -> usize {
         3
     } else {
         4
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::model::Chapter;
+
+    fn book() -> Book {
+        Book {
+            id: "b1".into(),
+            title: "测试书".into(),
+            author: "作者".into(),
+            intro: String::new(),
+            cover: None,
+            format: "txt".into(),
+            added_at: 1_760_000_000,
+            chapters: vec![Chapter {
+                title: "第一章".into(),
+                blocks: vec![Block::p("正文内容")],
+            }],
+        }
+    }
+
+    #[test]
+    fn reader_theme_follows_appearance_and_site_palette() {
+        let dark = page(&book(), 0, "csdn", "cs", "", 1, false, "dark");
+        assert!(dark.contains(r#"data-theme-mode="dark""#));
+        assert!(dark.contains(r#"data-theme="dark""#));
+        // 结构层 + CSDN 自己的深色变量都要在页面里
+        assert!(dark.contains(r#":root[data-theme="dark"] body.ly-blog main"#));
+        assert!(dark.contains("--as:rgba(252,85,49,.14)"));
+
+        let light = page(&book(), 0, "csdn", "cs", "", 1, false, "light");
+        assert!(light.contains(r#"data-theme="light""#));
+
+        let auto = page(&book(), 0, "csdn", "cs", "", 1, false, "auto");
+        assert!(auto.contains(r#"data-theme-mode="auto""#));
+        // auto 不写死 data-theme，交给页面里的 matchMedia
+        assert!(auto.contains(r#"data-theme="""#));
+    }
+
+    #[test]
+    fn every_site_has_its_own_dark_palette() {
+        let sites = load("data/sites.json");
+        assert!(!sites.is_empty(), "sites.json 不能是空的");
+        for site in &sites {
+            let id = s(site, "id");
+            let css = asset_text(&format!("sites/dark/{id}.css"));
+            assert!(!css.is_empty(), "{id} 缺少 sites/dark/{id}.css");
+            assert!(css.contains("--bg:"), "{id} 的深色样式没有背景色变量");
+        }
     }
 }

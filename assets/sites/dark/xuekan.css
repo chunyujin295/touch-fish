@@ -1,0 +1,19 @@
+/* 黑金配色，深色顶栏压得更暗 */
+:root[data-theme="dark"] body.s-xuekan{
+  --bg:#0f1115;
+  --card:#191c22;
+  --ink:#e8e6e0;
+  --ink2:#bdb8ac;
+  --ink3:#8b857a;
+  --line:#2a2e37;
+  --as:rgba(200,161,90,.16);
+  --ab:rgba(200,161,90,.34);
+  --dark-chip:#22252d;
+  --dark-chip2:#282b34;
+  --dark-soft:#1d2027;
+  --dark-line:#2b2f38;
+  --dark-line2:#383d48;
+  --dark-bg2:#1a1d24;
+  --a:#b08a45;
+}
+:root[data-theme="dark"] body.s-xuekan .hd.dk{background:#14161c;border-color:#14161c}

@@ -66,7 +66,19 @@ b,strong{font-weight:600}
   max-width:var(--w);margin:0 auto;padding:18px 22px 34px;align-items:start}
 .crumb{font-size:12.5px;color:var(--ink3);margin-bottom:15px;display:flex;gap:7px;flex-wrap:wrap;align-items:center}
 .crumb span{color:var(--ink2)}
+.crumb a{color:var(--ink2)}
+.crumb a:hover{color:var(--a)}
 .crumb .sep{color:#d0d5dd}
+
+/* 返回书库：左下角一个小方块，平时半透明，不抢正文的注意力。
+   顶栏 logo、面包屑首页、顶栏头像也都指回书库，这条只是给「找不到入口」兜底。 */
+.back{position:fixed;left:18px;bottom:18px;z-index:60;width:30px;height:30px;
+  display:flex;align-items:center;justify-content:center;border-radius:8px;
+  background:var(--card);border:1px solid var(--line);color:var(--ink3);
+  font-size:15px;line-height:1;opacity:.5;transition:.15s}
+.back:hover{opacity:1;color:var(--a);border-color:var(--ab)}
+/* 窄屏没有左右留白，按钮会压到正文，缩到边角并再淡一点 */
+@media (max-width:900px){.back{left:8px;bottom:8px;opacity:.32}}
 
 h1.pt{font-size:24px;line-height:1.45;font-weight:700;letter-spacing:-.4px;margin-bottom:12px}
 .mt{display:flex;align-items:center;gap:14px;font-size:12.5px;color:var(--ink3);flex-wrap:wrap;
@@ -91,6 +103,13 @@ h1.pt{font-size:24px;line-height:1.45;font-weight:700;letter-spacing:-.4px;margi
 .prose h3{font-size:16px;font-weight:700;margin:22px 0 10px;color:#111827}
 .prose blockquote.q{border-left:3px solid #dfe3e8;background:#fafbfc;padding:12px 16px;border-radius:0 5px 5px 0;
   color:var(--ink2);font-size:15px;margin:0 0 18px;line-height:1.85}
+/* 引用块里的正文用 <p> 包着，后面可能跟一行出处 */
+.prose blockquote.q p{margin:0}
+.prose blockquote.q cite{display:block;margin-top:9px;font-style:normal;font-size:12.5px;color:var(--ink3)}
+/* 首段导语：比正文大半档，专业技术文章的开头都这么排 */
+.prose p.lead{font-size:17px;line-height:1.95;color:var(--ink2);margin-bottom:20px}
+/* 小字注释：脚注、数据来源、编辑说明，字号比正文小一档 */
+.prose p.sm{font-size:12.5px;color:var(--ink3);line-height:1.8;margin:-4px 0 16px}
 .prose ul,.prose ol{margin:0 0 18px;padding-left:2px;list-style:none}
 .prose ol{counter-reset:n}
 .prose ul li{position:relative;padding-left:19px;margin-bottom:8px}
@@ -101,6 +120,9 @@ h1.pt{font-size:24px;line-height:1.45;font-weight:700;letter-spacing:-.4px;margi
 .prose hr.hr{border:none;border-top:1px solid var(--line);margin:26px 0}
 .prose figure.fig{margin:0 0 18px}
 .prose figure.fig img{border-radius:6px;border:1px solid var(--line);margin:0 auto}
+.prose figure.fig figcaption{font-size:12.5px;color:var(--ink3);text-align:center;margin-top:7px;line-height:1.7}
+/* 表注：技术文章的表都带一句「表 1：…」 */
+.tblcap{font-size:12.5px;color:var(--ink3);margin:0 0 6px;line-height:1.7}
 
 /* 代码块 */
 .code{border:1px solid #e6e9ee;border-radius:6px;overflow:hidden;margin:0 0 18px;background:#fbfcfd}
@@ -192,6 +214,20 @@ h1.pt{font-size:24px;line-height:1.45;font-weight:700;letter-spacing:-.4px;margi
 .ad-inline .add{font-size:12px;color:var(--ink3);line-height:1.6}
 .ad-inline .adc{margin-left:auto;flex:0 0 auto;white-space:nowrap;font-size:12px;color:var(--a)}
 .adslot:empty{display:none}
+
+/* 文中广告：夹在段落之间的一条，比顶部大卡矮一档。
+   颜色全走变量，深色模式下不用再单独覆盖一遍。 */
+.ad-mid{display:flex;align-items:center;gap:12px;position:relative;
+  border:1px solid var(--line);border-radius:7px;background:var(--card);
+  padding:12px 14px;margin:22px 0 18px}
+.ad-mid .am-tag{position:absolute;right:8px;top:6px;font-size:10px;color:var(--ink3);
+  border:1px solid var(--line);border-radius:2px;padding:0 3px;line-height:1.4}
+.ad-mid .am-ic{width:46px;height:46px;border-radius:6px;flex:0 0 46px;
+  background:linear-gradient(140deg,var(--a),var(--ab));opacity:.85}
+.ad-mid .am-x{flex:1;min-width:0}
+.ad-mid .adt{font-size:13.5px;font-weight:600;color:var(--ink);margin-bottom:3px;padding-right:38px;line-height:1.5}
+.ad-mid .add{font-size:12px;color:var(--ink3);line-height:1.6}
+.ad-mid .am-cta{flex:0 0 auto;white-space:nowrap;font-size:12px;color:var(--a);font-weight:500}
 
 /* 翻页 */
 .pager{display:flex;align-items:center;gap:10px;margin-top:26px;justify-content:space-between}

@@ -39,6 +39,10 @@ fn dev_mode() -> bool {
 
 pub struct App {
     pub store: Arc<Store>,
+    /// 实际监听的端口（TF_PORT 可能覆盖 settings.json 里的值）
+    pub port: u16,
+    /// 只有 `--server` 起的进程才是纯网页模式；桌面窗口模式不允许从网页里退出
+    pub web_mode: bool,
 }
 
 pub type Shared = Arc<App>;
@@ -47,24 +51,41 @@ pub fn asset_str(path: &str) -> Option<&'static str> {
     ASSETS.get_file(path).and_then(|f| f.contents_utf8())
 }
 
-pub fn router(store: Arc<Store>) -> Router {
-    let app = Arc::new(App { store });
-    Router::new()
+pub fn router(store: Arc<Store>, port: u16, web_mode: bool) -> Router {
+    let app = Arc::new(App {
+        store,
+        port,
+        web_mode,
+    });
+    let mut r = Router::new()
         .route("/", get(index))
         .route("/assets/*path", get(asset))
         .route("/media/:id/:file", get(media))
+        .route("/brand/:file", get(brand))
         .route("/api/books", get(list_books))
         .route("/api/books/:id", get(book_detail).delete(delete_book))
         .route(
             "/api/import",
             post(import).layer(DefaultBodyLimit::max(256 * 1024 * 1024)),
         )
+        .route(
+            "/api/logo",
+            post(upload_logo)
+                .delete(reset_logo)
+                .layer(DefaultBodyLimit::max(8 * 1024 * 1024)),
+        )
+        .route("/api/open-browser", post(open_default_browser))
+        .route("/api/data-dir", post(migrate_data_dir))
         .route("/api/progress/:id", post(set_progress))
         .route("/api/settings", get(get_settings).post(set_settings))
         .route("/api/sites", get(sites))
         .route("/api/packs", get(packs))
-        .route("/r/:id/:idx", get(reader))
-        .with_state(app)
+        .route("/r/:id/:idx", get(reader));
+    // 网页模式没有窗口也没有托盘，退出只能靠这个接口；桌面模式的 X 已经够用
+    if web_mode {
+        r = r.route("/api/shutdown", post(shutdown));
+    }
+    r.with_state(app)
 }
 
 /* ---------------- 静态资源 ---------------- */
@@ -146,6 +167,171 @@ async fn media(
 
 fn bad(msg: impl ToString) -> (StatusCode, String) {
     (StatusCode::BAD_REQUEST, msg.to_string())
+}
+
+/* ---------------- 自定义图标 ---------------- */
+
+/// 只收光栅图：SVG 可以内嵌脚本，这个静态资源没必要开口子。
+const LOGO_MAX_BYTES: usize = 2 * 1024 * 1024;
+
+/// 按文件头判断真实格式，不信任上传时带的扩展名
+fn image_ext(bytes: &[u8]) -> Option<&'static str> {
+    if bytes.starts_with(&[0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a]) {
+        Some("png")
+    } else if bytes.starts_with(&[0xff, 0xd8, 0xff]) {
+        Some("jpg")
+    } else if bytes.len() >= 12 && &bytes[0..4] == b"RIFF" && &bytes[8..12] == b"WEBP" {
+        Some("webp")
+    } else {
+        None
+    }
+}
+
+fn clear_logos(store: &Store) {
+    let Ok(dir) = std::fs::read_dir(store.brand_dir()) else {
+        return;
+    };
+    for entry in dir.flatten() {
+        if entry
+            .file_name()
+            .to_string_lossy()
+            .to_lowercase()
+            .starts_with("logo.")
+        {
+            let _ = std::fs::remove_file(entry.path());
+        }
+    }
+}
+
+/// 返回带版本号的 URL：换了图标之后浏览器不会拿旧缓存
+fn logo_url(store: &Store) -> String {
+    for ext in ["png", "jpg", "webp"] {
+        let path = store.brand_dir().join(format!("logo.{ext}"));
+        if path.exists() {
+            let v = std::fs::metadata(&path)
+                .and_then(|m| m.modified())
+                .ok()
+                .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                .map(|d| d.as_millis())
+                .unwrap_or(0);
+            return format!("/brand/logo.{ext}?v={v}");
+        }
+    }
+    String::new()
+}
+
+async fn brand(State(app): State<Shared>, Path(file): Path<String>) -> Response {
+    let known = ["logo.png", "logo.jpg", "logo.webp"];
+    if !known.contains(&file.as_str()) {
+        return (StatusCode::NOT_FOUND, "not found").into_response();
+    }
+    let path: PathBuf = app.store.brand_dir().join(&file);
+    match tokio::fs::read(&path).await {
+        Ok(bytes) => (
+            [
+                (header::CONTENT_TYPE, mime_for(&file)),
+                (header::CACHE_CONTROL, "no-cache"),
+            ],
+            bytes,
+        )
+            .into_response(),
+        Err(_) => (StatusCode::NOT_FOUND, "not found").into_response(),
+    }
+}
+
+async fn upload_logo(
+    State(app): State<Shared>,
+    mut mp: Multipart,
+) -> Result<Json<Value>, (StatusCode, String)> {
+    while let Some(field) = mp.next_field().await.map_err(bad)? {
+        if field.name() != Some("file") {
+            continue;
+        }
+        let bytes = field.bytes().await.map_err(bad)?;
+        if bytes.is_empty() {
+            return Err(bad("图片是空的"));
+        }
+        if bytes.len() > LOGO_MAX_BYTES {
+            return Err(bad("图标不要超过 2 MB"));
+        }
+        let Some(ext) = image_ext(&bytes[..]) else {
+            return Err(bad("只支持 PNG / JPG / WebP 图片"));
+        };
+        let dir = app.store.brand_dir();
+        std::fs::create_dir_all(&dir).map_err(bad)?;
+        // 先清旧文件再写，避免 logo.png 和 logo.jpg 同时存在时不知道用哪个
+        clear_logos(&app.store);
+        std::fs::write(dir.join(format!("logo.{ext}")), &bytes[..]).map_err(bad)?;
+        return Ok(Json(json!({ "ok": true, "logo": logo_url(&app.store) })));
+    }
+    Err(bad("没有收到图片"))
+}
+
+async fn reset_logo(State(app): State<Shared>) -> Json<Value> {
+    clear_logos(&app.store);
+    Json(json!({ "ok": true, "logo": "" }))
+}
+
+/// 桌面窗口里的「在浏览器中打开」：同一个本地服务，只是把页面交给系统浏览器
+async fn open_default_browser(State(app): State<Shared>) -> Json<Value> {
+    let url = format!("http://127.0.0.1:{}/", app.port);
+    // 桌面窗口开着时先收起来 —— 和托盘「打开网页页面」是同一条路径，
+    // 两种前端同一时刻只露一个。纯网页模式没有注册钩子，这里直接跳过。
+    if let Some(hooks) = crate::UI_HOOKS.get() {
+        (hooks.hide_window)();
+    }
+    crate::open_browser(&url);
+    Json(json!({ "ok": true, "url": url }))
+}
+
+/* ---------------- 数据目录迁移 ---------------- */
+
+#[derive(Deserialize)]
+struct DataDirBody {
+    path: String,
+}
+
+/// 把书库搬到新目录：复制 → 记下新位置 → 运行中立刻切过去 → 清理旧目录。
+/// 复制失败时旧目录原样保留，不会出现"搬到一半两边都不全"。
+async fn migrate_data_dir(
+    State(app): State<Shared>,
+    Json(body): Json<DataDirBody>,
+) -> Result<Json<Value>, (StatusCode, String)> {
+    if matches!(std::env::var("TOUCHFISH_DATA"), Ok(v) if !v.trim().is_empty()) {
+        return Err(bad(
+            "当前数据目录由环境变量 TOUCHFISH_DATA 指定，设置里不能改",
+        ));
+    }
+    let raw = body.path.trim().trim_matches('"');
+    if raw.is_empty() {
+        return Err(bad("请先填一个目录，例如 D:\\TouchFish"));
+    }
+    let target = PathBuf::from(raw);
+    if !target.is_absolute() {
+        return Err(bad("请填绝对路径，例如 D:\\TouchFish"));
+    }
+
+    // 复制可能是几百 MB 的书，别堵住 async 线程
+    let store = app.store.clone();
+    let dir = target.clone();
+    tokio::task::spawn_blocking(move || store.migrate_to(&dir))
+        .await
+        .map_err(|e| bad(format!("迁移失败：{e}")))?
+        .map_err(bad)?;
+
+    Ok(Json(json!({
+        "ok": true,
+        "data_dir": app.store.root().display().to_string(),
+    })))
+}
+
+/// 只在网页模式注册：先回包，再退出进程（否则浏览器拿到的是连接被重置）
+async fn shutdown() -> Json<Value> {
+    std::thread::spawn(|| {
+        std::thread::sleep(std::time::Duration::from_millis(200));
+        std::process::exit(0);
+    });
+    Json(json!({ "ok": true }))
 }
 
 async fn list_books(State(app): State<Shared>) -> Json<Value> {
@@ -292,6 +478,12 @@ async fn get_settings(State(app): State<Shared>) -> Json<Value> {
             json!(app.store.root().display().to_string()),
         );
         obj.insert("version".into(), json!(env!("CARGO_PKG_VERSION")));
+        obj.insert("logo".into(), json!(logo_url(&app.store)));
+        obj.insert("mode".into(), json!(if app.web_mode { "web" } else { "desktop" }));
+        obj.insert(
+            "data_dir_env".into(),
+            json!(matches!(std::env::var("TOUCHFISH_DATA"), Ok(v) if !v.trim().is_empty())),
+        );
     }
     Json(v)
 }
@@ -313,6 +505,7 @@ async fn set_settings(
     State(app): State<Shared>,
     Json(body): Json<Value>,
 ) -> Json<Value> {
+    let hotkey_before = app.store.settings().hotkey;
     let next = app.store.update_settings(|s| {
         if let Some(v) = body.get("port").and_then(|v| v.as_u64()) {
             if v > 0 && v < 65536 {
@@ -343,7 +536,20 @@ async fn set_settings(
         if let Some(v) = body.get("reader_keys").and_then(|v| v.as_bool()) {
             s.reader_keys = v;
         }
+        // 只认 auto / light / dark，拼错了就当没提交，别让界面停在认不出的状态
+        if let Some(v) = body.get("appearance").and_then(|v| v.as_str()) {
+            if crate::library::appearance_ok(v) {
+                s.appearance = v.to_string();
+            }
+        }
     });
+    // 热键改了就立刻重新注册：为了一次改键重启整个程序，体验太差。
+    // 注册失败时桌面侧会回退到旧键，并在控制台留一行警告。
+    if next.hotkey != hotkey_before {
+        if let Some(hooks) = crate::UI_HOOKS.get() {
+            (hooks.set_hotkey)(next.hotkey.clone());
+        }
+    }
     let mut v = serde_json::to_value(next).unwrap_or_else(|_| json!({}));
     if let Some(obj) = v.as_object_mut() {
         obj.insert(
@@ -351,6 +557,12 @@ async fn set_settings(
             json!(app.store.root().display().to_string()),
         );
         obj.insert("version".into(), json!(env!("CARGO_PKG_VERSION")));
+        obj.insert("logo".into(), json!(logo_url(&app.store)));
+        obj.insert("mode".into(), json!(if app.web_mode { "web" } else { "desktop" }));
+        obj.insert(
+            "data_dir_env".into(),
+            json!(matches!(std::env::var("TOUCHFISH_DATA"), Ok(v) if !v.trim().is_empty())),
+        );
     }
     Json(v)
 }
@@ -434,8 +646,32 @@ async fn reader(
         &settings.boss_url,
         q.p.unwrap_or(1),
         settings.reader_keys,
+        &settings.appearance,
     );
     app.store.set_progress(&id, idx);
 
-    Html(html).into_response()
+    // 页面里烘焙了当前外观，别让浏览器拿旧 HTML（换主题后打开还是旧配色）
+    (
+        [(header::CACHE_CONTROL, "no-store")],
+        Html(html),
+    )
+        .into_response()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::image_ext;
+
+    #[test]
+    fn logo_type_is_sniffed_from_bytes() {
+        assert_eq!(image_ext(&[0x89, b'P', b'N', b'G', 0x0d, 0x0a, 0x1a, 0x0a, 0, 0]), Some("png"));
+        assert_eq!(image_ext(&[0xff, 0xd8, 0xff, 0xe0]), Some("jpg"));
+        assert_eq!(
+            image_ext(b"RIFF\x24\x00\x00\x00WEBPVP8 "),
+            Some("webp")
+        );
+        // 扩展名叫 .png 但内容不是图片时，不能放进来
+        assert_eq!(image_ext(b"<html>nope</html>"), None);
+        assert_eq!(image_ext(&[]), None);
+    }
 }

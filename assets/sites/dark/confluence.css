@@ -1,0 +1,18 @@
+/* 深蓝灰的企业文档夜间版 */
+:root[data-theme="dark"] body.s-confluence{
+  --bg:#10151f;
+  --card:#1a2130;
+  --ink:#e6ecf5;
+  --ink2:#b3c0d4;
+  --ink3:#8593a8;
+  --line:#2b3446;
+  --as:rgba(87,157,255,.16);
+  --ab:rgba(87,157,255,.32);
+  --dark-chip:#222b3c;
+  --dark-chip2:#283348;
+  --dark-soft:#1d2433;
+  --dark-line:#2c3648;
+  --dark-line2:#38445a;
+  --dark-bg2:#1a2130;
+  --a:#3b8cf0;
+}

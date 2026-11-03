@@ -1,0 +1,18 @@
+/* 靛蓝底，公式和正文对比度优先 */
+:root[data-theme="dark"] body.s-mathchina{
+  --bg:#101019;
+  --card:#191926;
+  --ink:#e8e8f2;
+  --ink2:#b2b2cc;
+  --ink3:#8686a0;
+  --line:#2a2a3d;
+  --as:rgba(139,135,255,.16);
+  --ab:rgba(139,135,255,.34);
+  --dark-chip:#212133;
+  --dark-chip2:#272740;
+  --dark-soft:#1c1c2e;
+  --dark-line:#2b2b40;
+  --dark-line2:#383853;
+  --dark-bg2:#191926;
+  --a:#7f7bf0;
+}

@@ -118,6 +118,7 @@ pub fn parse(path: &Path, id: &str, media_dir: &Path) -> Result<Book> {
         Some(Block::Img {
             src: url,
             alt: String::new(),
+            cap: String::new(),
         })
     };
 

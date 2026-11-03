@@ -4,11 +4,19 @@
 //! 而这里的界面是手写 HTML/CSS、服务端直出，没有构建步骤。
 //! 拿 wry（Tauri 的底层）直接开窗，依赖少一个数量级，编译从十几分钟变成两分钟。
 //!
-//! 关窗与隐藏的分工：
-//! - 点右上角 X → 真的退出（用户以为它关了，那就关掉）
-//! - Boss Key（页面跳 about:blank）→ 只隐藏窗口，进程留着，热键一按就回来
+//! 关窗与隐藏的分工（v0.8 起）：
+//! - 点右上角 X → 收起到托盘，进程、本地服务、阅读进度都留着
+//! - Boss Key（页面跳 about:blank）→ 同样只是隐藏，热键一按就回来
+//! - 真退出只走托盘右键菜单「退出」
 //! 这条设计的理由：摸鱼时最怕的是"关掉之后手忙脚乱重新启动"，
-//! 隐藏的窗口不进任务栏、不进 Alt+Tab，比退出更安全也更快恢复。
+//! 隐藏的窗口不进任务栏、不进 Alt+Tab，比退出更安全也更快恢复；
+//! 而托盘是唯一常驻入口，所以它一定得给出"真的关掉"这个出口。
+//!
+//! 托盘右键菜单（并列两项，不记选择）：
+//! - 打开主页面：把桌面窗口拎到最前
+//! - 打开网页页面：先把窗口收起来，再用系统浏览器打开同一个地址
+//! 两种前端同一时刻只露出一个——网页版本来就更像"真网页"，
+//! 窗口和标签页同时开着反而更容易露馅。
 
 use std::path::{Path, PathBuf};
 
@@ -19,7 +27,7 @@ use tao::dpi::{PhysicalPosition, PhysicalSize};
 use tao::event::{Event, WindowEvent};
 use tao::event_loop::{ControlFlow, EventLoopBuilder, EventLoopProxy};
 use tao::window::{Icon, Window, WindowBuilder};
-use tray_icon::menu::{Menu, MenuEvent, MenuItem};
+use tray_icon::menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem};
 use tray_icon::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use wry::{WebContext, WebViewBuilder};
 
@@ -136,6 +144,14 @@ pub enum UserEvent {
     Boss,
     /// 热键 / 托盘左键：可见且在前台就收起，否则唤出
     Toggle,
+    /// 托盘菜单「打开主页面」：把桌面窗口拎到最前
+    OpenWindow,
+    /// 托盘菜单「打开网页页面」：收起窗口，交给系统浏览器
+    OpenWeb,
+    /// 页面里的「在浏览器中打开」：只收起窗口，浏览器由 web 层自己开
+    Hide,
+    /// 设置里改了全局热键：注销旧的、注册新的，立即生效
+    Hotkey(String),
     /// 托盘菜单「退出」
     Quit,
 }
@@ -229,16 +245,16 @@ fn env_flag(name: &str, default: bool) -> bool {
 
 /// 托盘图标：左键切换、右键菜单。
 /// 换来的好处是"忘了热键也能找回来"，代价是通知区多一个图标——设置里可以关掉。
+///
+/// 菜单是并列三项而不是一个"显示/收起"：收起这件事左键已经做了，
+/// 菜单要回答的是"现在想用哪种前端"——主窗口，还是浏览器标签页。
 fn build_tray(proxy: EventLoopProxy<UserEvent>, label: &str) -> Option<tray_icon::TrayIcon> {
     let menu = Menu::new();
-    let caption = if label.is_empty() {
-        "显示 / 收起".to_string()
-    } else {
-        format!("显示 / 收起  ({label})")
-    };
-    let toggle = MenuItem::with_id("toggle", caption, true, None);
+    let open_win = MenuItem::with_id("open-window", "打开主页面", true, None);
+    let open_web = MenuItem::with_id("open-web", "打开网页页面", true, None);
+    let sep = PredefinedMenuItem::separator();
     let quit = MenuItem::with_id("quit", "退出", true, None);
-    menu.append_items(&[&toggle, &quit]).ok()?;
+    menu.append_items(&[&open_win, &open_web, &sep, &quit]).ok()?;
 
     let tip = if label.is_empty() {
         "TouchFish".to_string()
@@ -272,9 +288,13 @@ fn build_tray(proxy: EventLoopProxy<UserEvent>, label: &str) -> Option<tray_icon
 
     let menu_proxy = proxy;
     MenuEvent::set_event_handler(Some(move |e: MenuEvent| {
+        // 未知的菜单项一律忽略：早先这里是 `_ => Toggle`，
+        // 以后再加菜单项时点一下就会莫名其妙把窗口收起来。
         let ev = match e.id().0.as_str() {
+            "open-window" => UserEvent::OpenWindow,
+            "open-web" => UserEvent::OpenWeb,
             "quit" => UserEvent::Quit,
-            _ => UserEvent::Toggle,
+            _ => return,
         };
         let _ = menu_proxy.send_event(ev);
     }));
@@ -282,20 +302,63 @@ fn build_tray(proxy: EventLoopProxy<UserEvent>, label: &str) -> Option<tray_icon
     Some(tray)
 }
 
-/// 注册全局热键。注册失败（被别的软件占了）时返回 None，
-/// 调用方据此把 Boss Key 退回"直接退出"，免得窗口收起来之后再也叫不出来。
-fn build_hotkey(proxy: EventLoopProxy<UserEvent>, spec: &str) -> Option<GlobalHotKeyManager> {
-    let (mods, code) = parse_hotkey(spec)?;
-    let manager = GlobalHotKeyManager::new().ok()?;
-    if manager.register(HotKey::new(Some(mods), code)).is_err() {
-        return None;
-    }
+/// 全局热键的按下事件永远走这一条：解成 Toggle，交给 UI 线程决定收起还是唤出。
+/// 和注册分开，是为了运行中换键时不用重设 handler。
+fn install_hotkey_handler(proxy: EventLoopProxy<UserEvent>) {
     GlobalHotKeyEvent::set_event_handler(Some(move |e: GlobalHotKeyEvent| {
         if e.state() == HotKeyState::Pressed {
             let _ = proxy.send_event(UserEvent::Toggle);
         }
     }));
-    Some(manager)
+}
+
+/// 注册全局热键。注册失败（写法不对，或被别的软件占了）时返回 None，
+/// 调用方据此把 Boss Key / 关窗退回"直接退出"，免得窗口收起来之后再也叫不出来。
+fn build_hotkey(spec: &str) -> Option<(GlobalHotKeyManager, HotKey)> {
+    let (mods, code) = parse_hotkey(spec)?;
+    let hk = HotKey::new(Some(mods), code);
+    let manager = GlobalHotKeyManager::new().ok()?;
+    if manager.register(hk).is_err() {
+        return None;
+    }
+    Some((manager, hk))
+}
+
+/// 运行中换热键：先注销旧的再试新的，失败就把旧的装回去。
+/// 宁可维持原状，也不能让用户点一下"保存"就失去唤出窗口的唯一入口。
+fn apply_hotkey(
+    cur: Option<(GlobalHotKeyManager, HotKey)>,
+    spec: &str,
+) -> Option<(GlobalHotKeyManager, HotKey)> {
+    let Some((mods, code)) = parse_hotkey(spec) else {
+        return cur;
+    };
+    let next = HotKey::new(Some(mods), code);
+    match cur {
+        // HotKey 的 id 每次 new 都会自增，只能比较修饰键 + 主键
+        Some((m, old)) if old.mods == next.mods && old.key == next.key => Some((m, old)),
+        Some((m, old)) => {
+            m.unregister(old).ok();
+            if m.register(next).is_ok() {
+                #[cfg(debug_assertions)]
+                eprintln!("[hotkey] 已换成 {}", hotkey_label(spec));
+                Some((m, next))
+            } else {
+                m.register(old).ok();
+                eprintln!("[warn] 热键 {} 注册失败，保持原设置", hotkey_label(spec));
+                Some((m, old))
+            }
+        }
+        None => {
+            // 启动时没注册上（被占用或设置里写错），用户这次改对了就现开一个
+            let m = GlobalHotKeyManager::new().ok()?;
+            if m.register(next).is_err() {
+                eprintln!("[warn] 热键 {} 注册失败", hotkey_label(spec));
+                return None;
+            }
+            Some((m, next))
+        }
+    }
 }
 
 /// 起窗口并阻塞在主线程。`url` 是已经就绪的本地地址。
@@ -336,9 +399,10 @@ pub fn run(
     let spec = std::env::var("TF_HOTKEY").unwrap_or(spec);
     let label = hotkey_label(&spec);
 
-    // 热键先注册：它决定了 Boss Key 是"收起"还是"退出"
-    let hotkey_guard = build_hotkey(event_loop.create_proxy(), &spec);
-    let hotkey_ok = hotkey_guard.is_some();
+    // 热键先注册：它决定了 Boss Key / 关窗是"收起"还是"退出"
+    install_hotkey_handler(event_loop.create_proxy());
+    let mut hotkey_state = build_hotkey(&spec);
+    let hotkey_ok = hotkey_state.is_some();
     if !hotkey_ok {
         eprintln!("[warn] 全局热键 {label} 注册失败（写法不对或被其他软件占用）");
     }
@@ -354,6 +418,19 @@ pub fn run(
     if !can_restore {
         eprintln!("[warn] 热键与托盘都不可用，Esc 将直接退出");
     }
+
+    // 网页层要窗口配合的两件事：收起来、换热键。桌面壳在这里把能力交出去，
+    // 纯网页模式（--server）永远不会注册，那边的调用会自然跳过。
+    let hide_proxy = event_loop.create_proxy();
+    let hotkey_proxy = event_loop.create_proxy();
+    let _ = crate::UI_HOOKS.set(crate::UiHooks {
+        hide_window: Box::new(move || {
+            let _ = hide_proxy.send_event(UserEvent::Hide);
+        }),
+        set_hotkey: Box::new(move |s: String| {
+            let _ = hotkey_proxy.send_event(UserEvent::Hotkey(s));
+        }),
+    });
 
     #[cfg(debug_assertions)]
     eprintln!(
@@ -375,6 +452,8 @@ pub fn run(
     }
 
     let nav_proxy = event_loop.create_proxy();
+    // 网页页面要用的地址：webview 已经拿走了 &str，这里留一份给托盘菜单
+    let page_url = url.to_string();
     let mut builder = WebViewBuilder::new_with_web_context(&mut ctx)
         .with_url(url)
         .with_devtools(cfg!(debug_assertions))
@@ -403,18 +482,26 @@ pub fn run(
 
     event_loop.run(move |event, _, control_flow| {
         *control_flow = ControlFlow::Wait;
-        // 这两行看着多余，其实是保命：管理器 / 托盘对象一旦被 drop，
-        // 热键就注销、图标就消失。借用一次强行把它们捕获进闭包。
-        let _keep_hotkey = &hotkey_guard;
+        // 托盘对象一旦被 drop 图标就消失，借用一次强行捕获进闭包。
+        // hotkey_state 会被 move 进来（换热键时要改它），生命周期一样没问题。
         let _keep_tray = &tray_guard;
+        // 每帧重新判断：运行中换热键、注册失败回退，都可能改变"还能不能叫回来"
+        let can_restore = tray_guard.is_some() || hotkey_state.is_some();
 
         match event {
             Event::WindowEvent {
                 event: WindowEvent::CloseRequested,
                 ..
             } => {
-                save_to(&window, &state_path);
-                *control_flow = ControlFlow::Exit;
+                // 点 X = 收起，后端（本地服务 + 托盘 + 热键）继续常驻；
+                // 只有托盘的「退出」才真的结束进程。
+                // 例外：托盘被关掉、热键又没注册上时，收起来就再也叫不出来，只能真退出。
+                if can_restore {
+                    hide_window(&window, &state_path);
+                } else {
+                    save_to(&window, &state_path);
+                    *control_flow = ControlFlow::Exit;
+                }
             }
             Event::UserEvent(UserEvent::Title(t)) => window.set_title(&t),
             Event::UserEvent(UserEvent::Boss) => {
@@ -425,6 +512,29 @@ pub fn run(
                 } else {
                     save_to(&window, &state_path);
                     *control_flow = ControlFlow::Exit;
+                }
+            }
+            Event::UserEvent(UserEvent::OpenWindow) => show_window(&window),
+            Event::UserEvent(UserEvent::OpenWeb) => {
+                // 两种前端只露一个：先把窗口收起来，再交给浏览器。
+                // 窗口只是隐藏，不销毁，网页版看完点托盘就能换回来。
+                hide_window(&window, &state_path);
+                crate::open_browser(&page_url);
+            }
+            Event::UserEvent(UserEvent::Hide) => {
+                // 书库里的「在浏览器中打开」走的是这条：浏览器由 web 层自己开，
+                // 这里只负责把窗口收起来，和托盘「打开网页页面」保持同一个效果。
+                if can_restore {
+                    hide_window(&window, &state_path);
+                }
+            }
+            Event::UserEvent(UserEvent::Hotkey(spec)) => {
+                // FnMut 闭包里不能把捕获的 Option 整个 move 出去，先 take 再放回
+                let cur = hotkey_state.take();
+                hotkey_state = apply_hotkey(cur, &spec);
+                // 托盘的 tooltip 里带着热键，换完跟着改，不然提示还是旧的
+                if let Some(t) = tray_guard.as_ref() {
+                    let _ = t.set_tooltip(Some(format!("TouchFish · {}", hotkey_label(&spec))));
                 }
             }
             Event::UserEvent(UserEvent::Quit) => {

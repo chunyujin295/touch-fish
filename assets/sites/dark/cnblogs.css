@@ -1,0 +1,18 @@
+/* 墨绿灰底，绿色只留在链接和进度条 */
+:root[data-theme="dark"] body.s-cnblogs{
+  --bg:#0e1316;
+  --card:#161d21;
+  --ink:#e2ece8;
+  --ink2:#a6b9b0;
+  --ink3:#7a8f86;
+  --line:#263136;
+  --as:rgba(74,194,107,.14);
+  --ab:rgba(74,194,107,.30);
+  --dark-chip:#1c262a;
+  --dark-chip2:#22302f;
+  --dark-soft:#182226;
+  --dark-line:#263236;
+  --dark-line2:#2f403f;
+  --dark-bg2:#161f1c;
+  --a:#3fae5f;
+}

@@ -1,0 +1,18 @@
+/* 医疗论坛的冷青色夜间版 */
+:root[data-theme="dark"] body.s-dxy{
+  --bg:#0f1517;
+  --card:#172024;
+  --ink:#e5eef0;
+  --ink2:#aabcc2;
+  --ink3:#7e929a;
+  --line:#26343a;
+  --as:rgba(34,184,207,.15);
+  --ab:rgba(34,184,207,.30);
+  --dark-chip:#1d282d;
+  --dark-chip2:#223036;
+  --dark-soft:#192428;
+  --dark-line:#26343a;
+  --dark-line2:#32454c;
+  --dark-bg2:#172125;
+  --a:#1aa7bd;
+}

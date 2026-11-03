@@ -1,0 +1,18 @@
+/* 深绿灰的学术论坛夜间版 */
+:root[data-theme="dark"] body.s-muchong{
+  --bg:#0f1511;
+  --card:#171f19;
+  --ink:#e6ede8;
+  --ink2:#aabbb0;
+  --ink3:#7e9186;
+  --line:#27342b;
+  --as:rgba(74,194,107,.14);
+  --ab:rgba(74,194,107,.30);
+  --dark-chip:#1e2820;
+  --dark-chip2:#233026;
+  --dark-soft:#19231c;
+  --dark-line:#27342b;
+  --dark-line2:#33453a;
+  --dark-bg2:#172019;
+  --a:#3fb950;
+}

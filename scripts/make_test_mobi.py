@@ -1,4 +1,4 @@
-# 生成用于验证 MOBI 解析的样书：python tools/make_test_mobi.py
+# 生成用于验证 MOBI 解析的样书：python scripts/make_test_mobi.py
 #
 # 手写一个合法的 PalmDB/MOBI：
 #   记录 0   PalmDOC 头(16) + MOBI 头(232) + EXTH（书名 503 / 作者 100）

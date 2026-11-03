@@ -1,0 +1,17 @@
+/* 炭灰底 + 橙色强调，边框保持清晰 */
+:root[data-theme="dark"] body.s-stackoverflow{
+  --bg:#1b1d1f;
+  --card:#242629;
+  --ink:#e7e9eb;
+  --ink2:#c1c5c8;
+  --ink3:#8f959a;
+  --line:#34383c;
+  --as:rgba(244,128,36,.16);
+  --ab:rgba(244,128,36,.32);
+  --dark-chip:#2b2e31;
+  --dark-chip2:#303438;
+  --dark-soft:#202326;
+  --dark-line:#34383c;
+  --dark-line2:#3f4448;
+  --dark-bg2:#232629;
+}
