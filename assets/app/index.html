@@ -63,6 +63,10 @@
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="M16.5 16.5L21 21"/></svg>
         <input id="searchInput" placeholder="搜索书名或作者" autocomplete="off">
       </label>
+      <button class="btn ghost hidden" id="openBrowser" title="用系统浏览器打开同一个书库，书和进度都是同一份">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6"/><path d="M20 4l-9 9"/><path d="M19 13v6a1 1 0 01-1 1H6a1 1 0 01-1-1V7a1 1 0 011-1h6"/></svg>
+        浏览器打开
+      </button>
       <button class="btn primary" id="importBtn">
         <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v10M8 11l4 4 4-4"/><path d="M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>
         导入书籍
@@ -112,10 +116,6 @@
           <button class="btn ghost" id="logoPick">上传</button>
           <button class="btn ghost" id="logoReset" disabled>恢复默认</button>
         </div>
-      </div>
-      <div class="prow hidden" id="rowOpenBrowser">
-        <div class="pl"><b>在浏览器中打开</b><span>用系统默认浏览器打开同一份书库，书、进度、设置完全一致。会先把窗口收起来，和托盘的「打开网页页面」是同一个效果</span></div>
-        <button class="btn ghost" id="openBrowser">打开</button>
       </div>
       <div class="prow" id="rowHotkey">
         <div class="pl"><b>全局热键</b><span>任意程序里都能呼出窗口，窗口在前台时按则收起；保存后立即生效，被别的软件占用时保留原键</span></div>

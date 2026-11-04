@@ -326,9 +326,9 @@ function renderSites() {
 
 function renderSettings() {
   const s = state.settings;
-  // 桌面模式给一个"在浏览器中打开"；纯网页模式给一个真正的退出入口
+  // 顶栏那个「浏览器打开」只在桌面窗口里有意义；纯网页模式反过来给一个真正的退出入口
   const web = s.mode === "web";
-  $("#rowOpenBrowser").classList.toggle("hidden", web);
+  $("#openBrowser").classList.toggle("hidden", web);
   $("#rowQuit").classList.toggle("hidden", !web);
   // 热键和托盘是桌面窗口的能力，网页模式下没有窗口可唤，露出来只会让人白改
   $("#rowHotkey").classList.toggle("hidden", web);
