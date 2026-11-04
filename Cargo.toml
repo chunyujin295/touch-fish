@@ -1,5 +1,6 @@
 [package]
 name = "touchfish"
+# 应用版本号在 scripts/version.txt（构建时内嵌）；这里的 version 只是 crate 元数据
 version = "0.1.0"
 edition = "2021"
 description = "把本地电子书渲染成以假乱真的社区网页"

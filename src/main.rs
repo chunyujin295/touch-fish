@@ -130,6 +130,12 @@ fn spawn_server(store: Arc<library::Store>, port: u16) -> anyhow::Result<()> {
     }
 }
 
+/// 应用版本号。唯一来源是 `scripts/version.txt`，编译期嵌进来：
+/// 改完那个文件直接 build 就生效，不用碰 Cargo.toml（它的 version 只当 crate 元数据）。
+pub(crate) fn version() -> &'static str {
+    include_str!("../scripts/version.txt").trim()
+}
+
 fn main() -> anyhow::Result<()> {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let has = |f: &str| args.iter().any(|a| a == f);
@@ -159,7 +165,7 @@ fn main() -> anyhow::Result<()> {
             return Ok(());
         }
         println!();
-        println!("  TouchFish  v{}", env!("CARGO_PKG_VERSION"));
+        println!("  TouchFish  v{}", version());
         println!("  数据目录  {}", data.display());
         println!("  书库界面  {url}");
         println!("  按 Ctrl+C 退出");
@@ -185,7 +191,7 @@ fn main() -> anyhow::Result<()> {
     #[cfg(feature = "gui")]
     {
         println!();
-        println!("  TouchFish  v{}", env!("CARGO_PKG_VERSION"));
+        println!("  TouchFish  v{}", version());
         println!("  数据目录  {}", data.display());
         if reused {
             println!("  复用已在运行的实例  {url}");

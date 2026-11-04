@@ -20,8 +20,9 @@ if errorlevel 1 (
   goto fail
 )
 
+rem 版本号唯一来源：scripts\version.txt
 set "VERSION="
-for /f "tokens=2 delims== " %%v in ('findstr /b /c:"version" Cargo.toml') do set "VERSION=%%~v"
+if exist "%ROOT%\scripts\version.txt" set /p VERSION=<"%ROOT%\scripts\version.txt"
 if not defined VERSION set "VERSION=0.0.0"
 
 set "NAME=TouchFish-!VERSION!-win64"

@@ -50,6 +50,8 @@ cargo test                    # 解析层的单元测试（MOBI 解压、UTF-8 �
 
 打包发给别人：
 
+版本号只有一个地方要改：`scripts/version.txt`。它会被 `include_str!` 在编译期嵌进可执行文件（启动横幅、`/api/settings` 的 `version` 字段），打包脚本也直接读它决定压缩包名字。`Cargo.toml` 里的 `version` 只是 crate 元数据，跟对外版本无关。
+
 Windows 直接双击 `scripts\package.bat`——会跑 `cargo build --release`，把 exe、README 和样书收进 `dist\TouchFish-<版本>-win64.zip`，不需要 Git Bash 或 Python：
 
 ```bat
@@ -145,7 +147,7 @@ assets/
 prototypes/      早期静态原型（8 套皮肤 + 主题包实验台），保留作设计存档
 docs/            PRD、主题包设计文档
 samples/         测试用样书（虚构的《分布式系统手记》）
-scripts/         生成样书（epub / mobi）与图标、打包脚本（package.sh / package.bat）、主题与快捷键的行为测试
+scripts/         版本号（version.txt，唯一来源）、生成样书与图标、打包脚本（package.sh / package.bat）、主题与快捷键的行为测试
 ```
 
 ## 架构：三层匹配

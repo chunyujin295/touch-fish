@@ -38,13 +38,9 @@ for arg in "$@"; do
   esac
 done
 
-VERSION="$(python - "$ROOT/Cargo.toml" <<'PY'
-import re, sys
-text = open(sys.argv[1], encoding="utf-8").read()
-m = re.search(r'^version\s*=\s*"([^"]+)"', text, re.M)
-print(m.group(1) if m else "0.0.0")
-PY
-)"
+# 版本号唯一来源：scripts/version.txt（构建时会被内嵌进可执行文件，见 src/main.rs）
+VERSION="$(tr -d '[:space:]' < "$ROOT/scripts/version.txt")"
+[ -n "$VERSION" ] || VERSION="0.0.0"
 
 # 目标平台：默认按宿主机判断，交叉编译时用 TF_TARGET 覆盖
 case "$(uname -s)" in

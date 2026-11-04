@@ -477,7 +477,7 @@ async fn get_settings(State(app): State<Shared>) -> Json<Value> {
             "data_dir".into(),
             json!(app.store.root().display().to_string()),
         );
-        obj.insert("version".into(), json!(env!("CARGO_PKG_VERSION")));
+        obj.insert("version".into(), json!(crate::version()));
         obj.insert("logo".into(), json!(logo_url(&app.store)));
         obj.insert("mode".into(), json!(if app.web_mode { "web" } else { "desktop" }));
         obj.insert(
@@ -556,7 +556,7 @@ async fn set_settings(
             "data_dir".into(),
             json!(app.store.root().display().to_string()),
         );
-        obj.insert("version".into(), json!(env!("CARGO_PKG_VERSION")));
+        obj.insert("version".into(), json!(crate::version()));
         obj.insert("logo".into(), json!(logo_url(&app.store)));
         obj.insert("mode".into(), json!(if app.web_mode { "web" } else { "desktop" }));
         obj.insert(
