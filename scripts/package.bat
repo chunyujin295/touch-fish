@@ -87,12 +87,29 @@ for %%A in ("%ZIP%") do set "ZIPSIZE=%%~zA"
 set "SHA="
 for /f "delims=" %%h in ('powershell -NoProfile -Command "(Get-FileHash -LiteralPath '%ZIP%' -Algorithm SHA256).Hash"') do set "SHA=%%h"
 
+rem Installer (optional): only when NSIS (makensis.exe) is installed.
+set "SETUP="
+set "MAKENSIS="
+if exist "%ProgramFiles(x86)%\NSIS\makensis.exe" set "MAKENSIS=%ProgramFiles(x86)%\NSIS\makensis.exe"
+if not defined MAKENSIS if exist "%ProgramFiles%\NSIS\makensis.exe" set "MAKENSIS=%ProgramFiles%\NSIS\makensis.exe"
+if defined MAKENSIS (
+  echo.
+  echo ^> makensis - setup.exe
+  "%MAKENSIS%" /DVERSION=!VERSION! "%ROOT%\scripts\installer.nsi" > "%TEMP%\tf_nsis.log" 2>&1
+  if errorlevel 1 (
+    echo    installer failed, log: %TEMP%\tf_nsis.log
+  ) else (
+    set "SETUP=%ROOT%\dist\TouchFish-!VERSION!-setup.exe"
+  )
+)
+
 echo.
 echo   archive  dist\!NAME!.zip  ^(!ZIPSIZE! bytes^)
 if defined SHA echo   SHA256   !SHA!
+if defined SETUP echo   setup    dist\TouchFish-!VERSION!-setup.exe
 echo.
-echo   Unzip and run touchfish.exe. For the browser view use the tray menu
-echo   ("open web page"). Data lives in %%APPDATA%%\TouchFish.
+echo   Unzip the archive, or run the setup.exe to install with shortcuts.
+echo   Data lives in %%APPDATA%%\TouchFish.
 if "%~1"=="" pause
 exit /b 0
 

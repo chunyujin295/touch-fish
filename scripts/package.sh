@@ -110,11 +110,30 @@ SIZE_ZIP=$(python -c "import os,sys;print('%.2f' % (os.path.getsize(sys.argv[1])
 SIZE_BIN=$(python -c "import os,sys;print('%.2f' % (os.path.getsize(sys.argv[1])/1048576))" "$BIN")
 SUM=$(python -c "import hashlib,sys;print(hashlib.sha256(open(sys.argv[1],'rb').read()).hexdigest())" "$ZIP")
 
+# 安装包（可选）：装了 NSIS 才做，没装就只出 zip
+SETUP=""
+if [ "$TARGET_OS" = "windows" ] && command -v makensis >/dev/null 2>&1; then
+  echo
+  echo "▶ makensis（安装包）"
+  if makensis -DVERSION="$VERSION" "$ROOT/scripts/installer.nsi" > "$ROOT/.tmp_nsis.log" 2>&1; then
+    SETUP="$ROOT/dist/$NAME-setup.exe"
+    echo "  已生成 dist/$NAME-setup.exe"
+  else
+    echo "  安装包生成失败，日志："
+    tail -20 "$ROOT/.tmp_nsis.log"
+  fi
+  rm -f "$ROOT/.tmp_nsis.log"
+elif [ "$TARGET_OS" = "windows" ]; then
+  echo
+  echo "  未检测到 makensis，跳过安装包（https://nsis.sourceforge.io）"
+fi
+
 echo
 echo "  可执行文件  $SIZE_BIN MB"
 echo "  压缩包      $SIZE_ZIP MB"
 echo "  SHA256      $SUM"
 echo "  输出        dist/$NAME.zip"
+[ -n "$SETUP" ] && echo "  安装包      dist/$NAME-setup.exe"
 echo
 echo "  解压后双击 $EXE 即可运行；书放在解压目录之外也没问题，"
 echo "  数据（书库、进度、设置）都在 %APPDATA%\\TouchFish（Linux 为 ~/.local/share/touch-fish）。"

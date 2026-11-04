@@ -6,6 +6,8 @@
 #   assets/app/icon.rgba   64×64 裸 RGBA，给 tao 当窗口图标、给 tray-icon 当托盘图标
 #   assets/app/icon.png    64×64 PNG，留给需要图片格式的地方
 #   assets/app/logo.png   128×128 PNG，书库界面的 favicon 与左上角品牌图标
+#   assets/app/icon.ico   多尺寸 Windows 图标（NSIS 安装包用），不在这里生成：
+#                         magick assets/app/logo.png -define icon:auto-resize=16,32,48,64,128 assets/app/icon.ico
 #
 # 不引 Pillow：源图是 8 位 RGB、非隔行，标准滤波就那五种，自己解一遍反而没有依赖。
 # 只做两件事：① 裁掉四周大片留白 ② 用面积平均缩放（不是最近邻）。
