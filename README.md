@@ -71,7 +71,7 @@ scripts\package.bat --clean       :: 打包前清掉 dist\
 | 数据 | `%APPDATA%\TouchFish` | 同一个位置，卸载时问你要不要一起删 |
 | 适用 | 临时试用、U 盘、服务器 | 装在自己机器上长期用 |
 
-安装包用 NSIS 生成（`scripts/installer.nsi`）。没装 NSIS 时 `package.bat` 会跳过这一步、只出 zip，不会报错；装好后重跑就有了。安装和卸载都会先 `taskkill` 掉正在运行的实例，免得 exe 被占用导致文件替换失败；静默安装/卸载（`/S`）不弹任何窗口，卸载时默认保留书库数据。
+安装包用 NSIS 生成（`scripts/installer.nsi`）。exe 本身由 `build.rs` 调 `rc.exe` 嵌入图标和版本信息——资源管理器、开始菜单、桌面快捷方式读的是文件里的 ICON 资源，运行时窗口和托盘则用内嵌的 `icon.rgba`，两者是分开的。没装 NSIS 时 `package.bat` 会跳过这一步、只出 zip，不会报错；装好后重跑就有了。安装和卸载都会先 `taskkill` 掉正在运行的实例，免得 exe 被占用导致文件替换失败；静默安装/卸载（`/S`）不弹任何窗口，卸载时默认保留书库数据。
 
 Linux / macOS（或 Git Bash）用 shell 版：
 
