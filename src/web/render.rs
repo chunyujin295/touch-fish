@@ -878,14 +878,14 @@ fn figure_pool(pack_id: &str) -> &'static [u8] {
     // 每个主题包的候选池：第一个是最贴切的那种（后端看链路、医学看曲线、安全看分层），
     // 长页面要插好几张时，从后面这几个里轮流取，避免同一页出现两张一样的图。
     match pack_id {
-        "crypto" => &[1, 4, 7, 3, 6, 5],
-        "infosec" => &[3, 5, 8, 7, 4, 6],
-        "med" => &[2, 6, 5, 3, 4, 7],
-        "edu" => &[4, 5, 3, 6, 8, 7],
-        "bio" => &[2, 6, 4, 3, 5, 8],
-        "math" => &[2, 6, 5, 7, 4, 3],
-        "phys" => &[2, 6, 8, 3, 5, 4],
-        _ => &[0, 1, 4, 5, 7, 8],
+        "crypto" => &[1, 4, 7, 3, 6, 5, 12, 10],
+        "infosec" => &[3, 5, 8, 7, 4, 6, 11, 13],
+        "med" => &[2, 6, 5, 3, 4, 7, 10, 15],
+        "edu" => &[4, 5, 3, 6, 8, 7, 14, 12],
+        "bio" => &[2, 6, 4, 3, 5, 8, 15, 10],
+        "math" => &[2, 6, 5, 7, 4, 3, 10, 15],
+        "phys" => &[2, 6, 8, 3, 5, 4, 10, 11],
+        _ => &[0, 1, 4, 5, 7, 8, 13, 11],
     }
 }
 
@@ -1082,6 +1082,231 @@ fn figure_svg(kind: u8, terms: &[String], seed: u64, variant: usize) -> String {
 </svg>"##
             )
         }
+        10 => {
+            // 雷达图：三层网格 + 两组五维数据，用来对比「优化前 / 优化后」
+            let (cx, cy, r) = (320f64, 158f64, 106f64);
+            let n = 5usize;
+            let ang = |i: usize| -std::f64::consts::FRAC_PI_2
+                + (i as f64) * 2.0 * std::f64::consts::PI / n as f64;
+            let mut grid = String::new();
+            for ring in [0.34f64, 0.67, 1.0] {
+                let mut pts = String::new();
+                for i in 0..n {
+                    let (x, y) = (cx + r * ring * ang(i).cos(), cy + r * ring * ang(i).sin());
+                    pts.push_str(&format!("{:.1},{:.1} ", x, y));
+                }
+                grid.push_str(&format!(
+                    r##"<polygon class="gd" points="{}"/>"##,
+                    pts.trim()
+                ));
+            }
+            let mut spokes = String::new();
+            let mut labels = String::new();
+            for i in 0..n {
+                let (x, y) = (cx + r * ang(i).cos(), cy + r * ang(i).sin());
+                spokes.push_str(&format!(
+                    r##"<path class="ln" d="M{cx:.0} {cy:.0}L{x:.1} {y:.1}"/>"##
+                ));
+                let (lx, ly) = (cx + (r + 22.0) * ang(i).cos(), cy + (r + 22.0) * ang(i).sin());
+                labels.push_str(&format!(
+                    r##"<text class="t2" x="{lx:.1}" y="{ly:.1}" text-anchor="middle">{}</text>"##,
+                    esc(&t(i))
+                ));
+            }
+            let shape = |vals: [f64; 5], cls: &str| -> String {
+                let mut pts = String::new();
+                for i in 0..n {
+                    let (x, y) = (
+                        cx + r * vals[i] * ang(i).cos(),
+                        cy + r * vals[i] * ang(i).sin(),
+                    );
+                    pts.push_str(&format!("{:.1},{:.1} ", x, y));
+                }
+                format!(
+                    r##"<polygon class="{}" points="{}"/>"##,
+                    cls,
+                    pts.trim()
+                )
+            };
+            let before = shape([0.86, 0.58, 0.72, 0.63, 0.55], "rad1");
+            let after = shape([0.72, 0.78, 0.62, 0.88, 0.80], "rad2");
+            format!(
+                r##"<svg class="figsvg" viewBox="0 0 640 300" role="img" aria-label="多维指标雷达图">
+{grid}{spokes}{labels}{before}{after}
+<text class="t2" x="470" y="52">优化前</text><text class="t2" x="470" y="70">优化后</text>
+<rect class="rad1s" x="452" y="42" width="10" height="10" rx="2"/><rect class="rad2s" x="452" y="60" width="10" height="10" rx="2"/>
+</svg>"##
+            )
+        }
+        11 => {
+            // 热力图：9 × 5 的时段矩阵，深浅表示强度
+            let mut z = seed ^ (variant as u64).wrapping_mul(0x9e37_79b9_7f4a_7c15);
+            let mut next = || {
+                z = (z ^ (z >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
+                z = (z ^ (z >> 27)).wrapping_mul(0x94d0_49bb_1331_11eb);
+                (z ^ (z >> 31)) % 100
+            };
+            let mut cells = String::new();
+            for row in 0..5usize {
+                for col in 0..9usize {
+                    let v = next();
+                    let op = 0.10 + (v as f64) / 100.0 * 0.78;
+                    cells.push_str(&format!(
+                        r##"<rect class="hm" x="{}" y="{}" width="50" height="34" rx="2" opacity="{op:.2}"/>"##,
+                        84 + col * 56,
+                        54 + row * 42
+                    ));
+                }
+            }
+            let mut ticks = String::new();
+            for row in 0..5usize {
+                ticks.push_str(&format!(
+                    r##"<text class="t2" x="74" y="{}" text-anchor="end">{}</text>"##,
+                    76 + row * 42,
+                    ["00", "06", "12", "18", "23"][row]
+                ));
+            }
+            format!(
+                r##"<svg class="figsvg" viewBox="0 0 640 300" role="img" aria-label="时段分布热力图">
+{cells}{ticks}
+<text class="t2" x="84" y="272">周一</text><text class="t2" x="252" y="272">周三</text>
+<text class="t2" x="420" y="272">周五</text><text class="t2" x="516" y="272">周日</text>
+<text class="t2" x="84" y="40">时段 / 星期</text>
+</svg>"##
+            )
+        }
+        12 => {
+            // 环形图：用 stroke-dasharray 拼三段，中心放占比
+            let (cx, cy, r) = (168f64, 148f64, 74f64);
+            let c = 2.0 * std::f64::consts::PI * r;
+            let parts = [
+                (0.52, 0.0, "r1"),
+                (0.31, 0.52, "r2"),
+                (0.17, 0.83, "r3"),
+            ];
+            let mut arcs = String::new();
+            for (frac, off, cls) in parts {
+                let dash = c * frac;
+                arcs.push_str(&format!(
+                    r##"<circle class="{}" cx="{cx:.0}" cy="{cy:.0}" r="{r:.0}" transform="rotate(-90 {cx:.0} {cy:.0})" stroke-dasharray="{dash:.1} {:.1}" stroke-dashoffset="{:.1}"/>"##,
+                    cls,
+                    c - dash,
+                    -c * off
+                ));
+            }
+            format!(
+                r##"<svg class="figsvg" viewBox="0 0 640 300" role="img" aria-label="占比分布环形图">
+{arcs}
+<text class="big" x="{cx:.0}" y="146" text-anchor="middle">52%</text>
+<text class="t2" x="{cx:.0}" y="168" text-anchor="middle">占比最大</text>
+<rect class="r1s" x="320" y="78" width="11" height="11" rx="2"/><text class="tx" x="340" y="88">{}</text>
+<rect class="r2s" x="320" y="122" width="11" height="11" rx="2"/><text class="tx" x="340" y="132">{}</text>
+<rect class="r3s" x="320" y="166" width="11" height="11" rx="2"/><text class="tx" x="340" y="176">{}</text>
+</svg>"##,
+                esc(&t(0)),
+                esc(&t(1)),
+                esc(&t(2))
+            )
+        }
+        13 => {
+            // 拓扑图：中心协调节点 + 六个外围节点
+            let (cx, cy, r) = (320f64, 150f64, 96f64);
+            let names = ["节点 A", "节点 B", "节点 C", "节点 D", "节点 E", "节点 F"];
+            let mut links = String::new();
+            let mut nodes = String::new();
+            for i in 0..6usize {
+                let a = -std::f64::consts::FRAC_PI_2
+                    + (i as f64) * 2.0 * std::f64::consts::PI / 6.0;
+                // 横向拉宽成椭圆，左右两列才不会挤在中心附近
+                let (x, y) = (cx + r * 1.42 * a.cos(), cy + r * 0.86 * a.sin());
+                links.push_str(&format!(
+                    r##"<path class="ln" d="M{cx:.0} {cy:.0}L{x:.1} {y:.1}"/>"##
+                ));
+                nodes.push_str(&format!(
+                    r##"<rect class="pl" x="{:.1}" y="{:.1}" width="86" height="30" rx="15"/><text class="t2" x="{:.1}" y="{:.1}" text-anchor="middle">{}</text>"##,
+                    x - 43.0,
+                    y - 15.0,
+                    x,
+                    y + 4.0,
+                    names[i]
+                ));
+            }
+            format!(
+                r##"<svg class="figsvg" viewBox="0 0 640 300" role="img" aria-label="集群拓扑示意图">
+{links}{nodes}
+<rect class="hl" x="{:.0}" y="{:.0}" width="112" height="44" rx="22"/>
+<text class="tx" x="{cx:.0}" y="{:.0}" text-anchor="middle">{}</text>
+</svg>"##,
+                cx - 56.0,
+                cy - 22.0,
+                cy + 5.0,
+                esc(&t(0))
+            )
+        }
+        14 => {
+            // 漏斗图：四段转化，右侧标比例
+            let steps = [
+                (58.0, 420.0, 300.0, "100%"),
+                (106.0, 300.0, 208.0, "68%"),
+                (154.0, 208.0, 132.0, "41%"),
+                (202.0, 132.0, 76.0, "23%"),
+            ];
+            let mut bars = String::new();
+            for (i, (y, w_top, w_bot, pct)) in steps.iter().enumerate() {
+                let (y, wt, wb) = (*y, *w_top, *w_bot);
+                let cx = 320.0;
+                bars.push_str(&format!(
+                    r##"<polygon class="bar" opacity="{:.2}" points="{:.0},{:.0} {:.0},{:.0} {:.0},{:.0} {:.0},{:.0}"/>
+<text class="tx" x="320" y="{:.0}" text-anchor="middle">{}</text>
+<text class="t2" x="452" y="{:.0}">{pct}</text>"##,
+                    0.80 - i as f64 * 0.13,
+                    cx - wt / 2.0,
+                    y,
+                    cx + wt / 2.0,
+                    y,
+                    cx + wb / 2.0,
+                    y + 40.0,
+                    cx - wb / 2.0,
+                    y + 40.0,
+                    y + 26.0,
+                    esc(&t(i)),
+                    y + 26.0
+                ));
+            }
+            format!(
+                r##"<svg class="figsvg" viewBox="0 0 640 300" role="img" aria-label="转化漏斗图">
+{bars}
+</svg>"##
+            )
+        }
+        15 => {
+            // 箱线图：三组分布，箱体 + 中位线 + 须
+            let groups = [(140.0, 96.0, 168.0, 74.0, 190.0), (320.0, 120.0, 196.0, 88.0, 216.0), (500.0, 78.0, 150.0, 60.0, 176.0)];
+            let mut out = String::new();
+            for (i, (x, q1, q3, lo, hi)) in groups.iter().enumerate() {
+                out.push_str(&format!(
+                    r##"<path class="ln" d="M{x:.0} {hi:.0}V{lo:.0}"/>
+<path class="ln" d="M{:.0} {hi:.0}h34M{:.0} {lo:.0}h34"/>
+<rect class="box" x="{:.0}" y="{q1:.0}" width="54" height="{:.0}" rx="3"/>
+<path class="med" d="M{:.0} {:.0}h54"/>
+<text class="t2" x="{x:.0}" y="272" text-anchor="middle">{}</text>"##,
+                    x - 17.0,
+                    x - 17.0,
+                    x - 27.0,
+                    q3 - q1,
+                    x - 27.0,
+                    (q1 + q3) / 2.0,
+                    esc(&t(i))
+                ));
+            }
+            format!(
+                r##"<svg class="figsvg" viewBox="0 0 640 300" role="img" aria-label="分布箱线图">
+<path class="ax" d="M64 34v216h540"/>
+<path class="gd" d="M64 88h540M64 136h540M64 184h540"/>
+{out}
+</svg>"##
+            )
+        }
         _ => {
             let (a, b, c) = (esc(&t(0)), esc(&t(1)), esc(&t(2)));
             format!(
@@ -1139,6 +1364,21 @@ fn figure_html(kind: u8, terms: &[String], n: usize, seed: u64) -> String {
             "图 {n}：{}的阶段排期",
             terms.get(0).map(|s| s.as_str()).unwrap_or("任务")
         ),
+        10 => format!(
+            "图 {n}：{} 各维度的评分对比",
+            terms.get(0).map(|s| s.as_str()).unwrap_or("方案")
+        ),
+        11 => format!("图 {n}：一周内的分布密度"),
+        12 => format!(
+            "图 {n}：{} 的构成占比",
+            terms.get(0).map(|s| s.as_str()).unwrap_or("流量")
+        ),
+        13 => format!("图 {n}：集群拓扑与数据流"),
+        14 => format!(
+            "图 {n}：{} 的转化漏斗",
+            terms.get(0).map(|s| s.as_str()).unwrap_or("流程")
+        ),
+        15 => format!("图 {n}：各组的分布区间"),
         _ => format!("图 {n}：分层结构与各层职责"),
     };
     format!(

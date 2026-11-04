@@ -141,6 +141,25 @@ h1.pt{font-size:24px;line-height:1.45;font-weight:700;letter-spacing:-.4px;margi
 .figsvg .tx{fill:var(--ink2);font-size:12.5px}
 .figsvg .t2{fill:var(--ink3);font-size:11px}
 /* 小标题前的行业图标：跟着标题字号走，颜色用强调色 */
+
+/* 雷达图：一组实心、一组虚线描边，对应「优化前 / 优化后」 */
+.figsvg .rad1{fill:var(--a);opacity:.16;stroke:var(--a);stroke-width:1.6}
+.figsvg .rad2{fill:none;stroke:var(--ink3);stroke-width:1.6;stroke-dasharray:5 4}
+.figsvg .rad1s{fill:var(--a);opacity:.45}
+.figsvg .rad2s{fill:var(--ink3);opacity:.45}
+/* 热力图：同一个色，靠透明度表示强度 */
+.figsvg .hm{fill:var(--a)}
+/* 环形图：三段同色不同透明度 */
+.figsvg .r1,.figsvg .r2,.figsvg .r3{fill:none;stroke:var(--a);stroke-width:22}
+.figsvg .r2{opacity:.55}
+.figsvg .r3{stroke:var(--ink3);opacity:.55}
+.figsvg .r1s{fill:var(--a)}
+.figsvg .r2s{fill:var(--a);opacity:.55}
+.figsvg .r3s{fill:var(--ink3);opacity:.55}
+.figsvg .big{fill:var(--ink);font-size:26px;font-weight:600}
+/* 箱线图：箱体半透明，中位线用实色 */
+.figsvg .box{fill:var(--a);opacity:.18;stroke:var(--a);stroke-width:1.4}
+.figsvg .med{stroke:var(--a);stroke-width:2}
 .prose h2 .hico{width:15px;height:15px;vertical-align:-2px;margin-right:7px;color:var(--a)}
 /* 表注：技术文章的表都带一句「表 1：…」 */
 .tblcap{font-size:12.5px;color:var(--ink3);margin:0 0 6px;line-height:1.7}
