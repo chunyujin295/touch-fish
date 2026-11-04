@@ -100,19 +100,20 @@ pub fn page(
     // 文中广告：跟顶部那张大卡用不同的一条，避免同一页里同一句广告出现两次
     let mid_ads = mid_ads_html(&pack);
     // 正文插图：短文不插图（真实的技术贴也不是每篇都有图），长页一到两张
-    let p_page = page_blocks
-        .iter()
-        .filter(|b| matches!(b, Block::P { .. }))
-        .count();
     // 这一页本来就有插图（EPUB 里的 figcaption 图）就别再叠合成的示意图了
     let has_img = page_blocks.iter().any(|b| matches!(b, Block::Img { .. }));
-    let kinds = figure_kinds(s(&pack, "id"), seed);
-    let figs: Vec<String> = if p_page >= 10 && !has_img {
-        let n = if p_page >= 18 { 2 } else { 1 };
-        (0..n).map(|i| figure_html(kinds[i], &tags, i + 1, seed)).collect()
+    // 按篇幅给图，而不是固定两张：分页站点一页约 3000 字配两张，
+    // 知乎/公众号这种一页到底的长文才会一口气排到小区间。
+    let pid = s(&pack, "id");
+    let page_chars: usize = page_blocks.iter().map(block_chars).sum();
+    let fig_n = if has_img || page_chars < 1400 {
+        0
     } else {
-        Vec::new()
+        (page_chars / 1400).clamp(1, 9)
     };
+    let figs: Vec<String> = (0..fig_n)
+        .map(|i| figure_html(figure_kind_at(pid, seed, i), &tags, i + 1, seed))
+        .collect();
     // 一页里的图标轮着用：起点跟着 seed 走，不同章节的第一节也不会老是同一个符号
     let mut icons: Vec<String> = topic_icons(s(&pack, "id"))
         .iter()
@@ -129,6 +130,7 @@ pub fn page(
         &mid_ads,
         &figs,
         &icons,
+        seed,
     );
 
     // ---- 元信息 ----
@@ -872,33 +874,40 @@ fn icon_svg(paths: &str) -> String {
 }
 
 /// 不同主题包配不同的示意图：后端看架构和时序，医学看曲线，安全看分层。
-fn figure_kinds(pack_id: &str, seed: u64) -> [u8; 2] {
-    // 每个主题包一个候选池：第一张固定取最贴切的那种（后端看链路、医学看曲线、
-    // 安全看分层），第二张从池里按 seed 随机，同一本书不同章节的图不会总是一对。
-    let pool: &[u8] = match pack_id {
-        "crypto" => &[1, 4, 7, 3, 6],
-        "infosec" => &[3, 5, 8, 7],
-        "med" => &[2, 6, 5, 3],
-        "edu" => &[4, 5, 3, 6],
-        "bio" => &[2, 6, 4, 3],
-        "math" => &[2, 6, 5, 7],
-        "phys" => &[2, 6, 8, 3],
-        _ => &[0, 1, 4, 5, 7],
-    };
-    let rest = pool.len().saturating_sub(1).max(1);
-    // 相邻章节的 seed 只差几个数，直接取模会几乎落在同一格；
-    // 先做一次 splitmix 混合，保证同一本书翻十章的图是真的在换。
+fn figure_pool(pack_id: &str) -> &'static [u8] {
+    // 每个主题包的候选池：第一个是最贴切的那种（后端看链路、医学看曲线、安全看分层），
+    // 长页面要插好几张时，从后面这几个里轮流取，避免同一页出现两张一样的图。
+    match pack_id {
+        "crypto" => &[1, 4, 7, 3, 6, 5],
+        "infosec" => &[3, 5, 8, 7, 4, 6],
+        "med" => &[2, 6, 5, 3, 4, 7],
+        "edu" => &[4, 5, 3, 6, 8, 7],
+        "bio" => &[2, 6, 4, 3, 5, 8],
+        "math" => &[2, 6, 5, 7, 4, 3],
+        "phys" => &[2, 6, 8, 3, 5, 4],
+        _ => &[0, 1, 4, 5, 7, 8],
+    }
+}
+
+/// 第 i 张图用哪种形态。第 0 张固定用池首，其余在池里轮转（起点由 seed 决定），
+/// 这样一页插 8 张也不会连着两张一样。
+fn figure_kind_at(pack_id: &str, seed: u64, i: usize) -> u8 {
+    let pool = figure_pool(pack_id);
+    if i == 0 || pool.len() < 2 {
+        return pool[0];
+    }
+    let rest = &pool[1..];
+    // 相邻章节的 seed 只差几个数，直接取模会几乎落在同一格，先混一次再取
     let mut z = seed ^ 0x9e37_79b9_7f4a_7c15;
     z = (z ^ (z >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
     z = (z ^ (z >> 27)).wrapping_mul(0x94d0_49bb_1331_11eb);
     let h = z ^ (z >> 31);
-    let idx = 1 + (h as usize % rest);
-    [pool[0], pool[idx.min(pool.len() - 1)]]
+    rest[(h as usize + i - 1) % rest.len()]
 }
 
 /// 四张示意图，按主题包的术语填标签。
 /// 全内联 SVG：不联网、不占体积，颜色全走 CSS 变量，深色模式不用另画一套。
-fn figure_svg(kind: u8, terms: &[String], seed: u64) -> String {
+fn figure_svg(kind: u8, terms: &[String], seed: u64, variant: usize) -> String {
     let t = |i: usize| terms.get(i).cloned().unwrap_or_else(|| "服务".to_string());
     match kind {
         0 => {
@@ -974,8 +983,20 @@ fn figure_svg(kind: u8, terms: &[String], seed: u64) -> String {
         }
         5 => {
             let mut bars = String::new();
-            let h1 = [118, 86, 132, 96];
-            let h2 = [72, 60, 96, 74];
+            // 柱高跟 seed 和这张图的序号走：同类图换个位置，形状也跟着换
+            let mut z = seed ^ (variant as u64).wrapping_mul(0x9e37_79b9_7f4a_7c15);
+            let mut next = || {
+                z = (z ^ (z >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
+                z = (z ^ (z >> 27)).wrapping_mul(0x94d0_49bb_1331_11eb);
+                (z ^ (z >> 31)) as i32
+            };
+            let mut h1 = [0i32; 4];
+            let mut h2 = [0i32; 4];
+            for i in 0..4 {
+                let a = 72 + next().abs() % 62;
+                h1[i] = a;
+                h2[i] = (a - 18 - next().abs() % 34).max(18);
+            }
             let names = ["基线", "优化后", "压测", "线上"];
             for i in 0..4usize {
                 let x = 78 + i * 118;
@@ -1006,7 +1027,7 @@ fn figure_svg(kind: u8, terms: &[String], seed: u64) -> String {
             )
         }
         6 => {
-            let mut st = seed | 1;
+            let mut st = (seed ^ (variant as u64).wrapping_mul(0x9e37_79b9_7f4a_7c15)) | 1;
             let mut dots = String::new();
             for i in 0..22i32 {
                 st = st
@@ -1086,6 +1107,13 @@ fn figure_svg(kind: u8, terms: &[String], seed: u64) -> String {
 
 /// 一整套插图：图形 + 图注，按顺序编号。
 fn figure_html(kind: u8, terms: &[String], n: usize, seed: u64) -> String {
+    // 同一页可能出现两张同类图，标签跟着序号转一圈，免得两处文字一模一样
+    let variant = n.saturating_sub(1);
+    let len = terms.len().max(1);
+    let rotated: Vec<String> = (0..len)
+        .map(|i| terms[(i + variant) % len].clone())
+        .collect();
+    let terms = rotated.as_slice();
     let cap = match kind {
         0 => format!(
             "图 {n}：{} → {} 的调用链路",
@@ -1094,16 +1122,28 @@ fn figure_html(kind: u8, terms: &[String], n: usize, seed: u64) -> String {
         ),
         1 => format!("图 {n}：一次请求的完整时序"),
         2 => format!("图 {n}：不同条件下的指标变化"),
-        4 => format!("图 {n}：处理流程与分支条件"),
-        5 => format!("图 {n}：各阶段优化前后对比"),
+        4 => format!(
+            "图 {n}：{}的处理流程与分支",
+            terms.get(0).map(|s| s.as_str()).unwrap_or("请求")
+        ),
+        5 => format!(
+            "图 {n}：{} 的性能对比",
+            terms.get(0).map(|s| s.as_str()).unwrap_or("各阶段")
+        ),
         6 => format!("图 {n}：样本分布与拟合趋势"),
-        7 => format!("图 {n}：状态流转与重试路径"),
-        8 => format!("图 {n}：阶段性任务排期"),
+        7 => format!(
+            "图 {n}：{}的状态流转",
+            terms.get(0).map(|s| s.as_str()).unwrap_or("任务")
+        ),
+        8 => format!(
+            "图 {n}：{}的阶段排期",
+            terms.get(0).map(|s| s.as_str()).unwrap_or("任务")
+        ),
         _ => format!("图 {n}：分层结构与各层职责"),
     };
     format!(
         "<figure class=\"fig\">{}<figcaption>{}</figcaption></figure>",
-        figure_svg(kind, terms, seed),
+        figure_svg(kind, terms, seed, variant),
         esc(&cap)
     )
 }
@@ -1295,6 +1335,7 @@ fn body_html(
     ads: &[String],
     figs: &[String],
     icons: &[String],
+    seed: u64,
 ) -> String {
     let mut out = String::new();
     let mut hcount = 0usize;
@@ -1319,13 +1360,33 @@ fn body_html(
     }
     let mut ad_i = 0usize;
 
-    // 插图落点：第一节读完放一张，长页再补一张；和广告位错开，别挤在一起
-    let fig_slots: Vec<usize> = if figs.is_empty() {
+    // 插图落点：按张数把整页段落均分，别让图全挤在开头；再避开广告位
+    let fig_slots: Vec<usize> = if figs.is_empty() || p_total < 4 {
         Vec::new()
-    } else if p_total >= 16 {
-        vec![3, 12]
     } else {
-        vec![3]
+        let n = figs.len();
+        // 第一张不能压到页面太后面：读者一屏看不到图，还是「一堆文字」。
+        // 固定在第 6–10 段之间开场，剩下的按剩余篇幅均分。
+        let first = (6 + (seed % 5) as usize).min(p_total.saturating_sub(6).max(3));
+        let span = p_total.saturating_sub(first + 4).max(1);
+        let mut v: Vec<usize> = (0..n)
+            .map(|i| if i == 0 { first } else { first + span * i / n })
+            .collect();
+        // 和广告落在同一段、或只隔一段时往后挪，免得图上面顶着一条广告
+        for i in 0..v.len() {
+            loop {
+                let val = v[i];
+                let near_ad = slots.iter().any(|a| (*a as i32 - val as i32).abs() <= 1);
+                let dup = v.iter().enumerate().any(|(j, x)| j != i && *x == val);
+                if (!near_ad && !dup) || val + 2 > p_total {
+                    break;
+                }
+                v[i] = val + 2;
+            }
+        }
+        v.sort_unstable();
+        v.dedup();
+        v
     };
     let mut fig_i = 0usize;
 
