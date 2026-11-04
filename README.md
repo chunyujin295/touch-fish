@@ -52,7 +52,7 @@ cargo test                    # 解析层的单元测试（MOBI 解压、UTF-8 �
 
 版本号只有一个地方要改：`scripts/version.txt`。它会被 `include_str!` 在编译期嵌进可执行文件（启动横幅、`/api/settings` 的 `version` 字段），打包脚本也直接读它决定压缩包名字。`Cargo.toml` 里的 `version` 只是 crate 元数据，跟对外版本无关。
 
-Windows 直接双击 `scripts\package.bat`——会跑 `cargo build --release`，把 exe、README 和样书收进 `dist\TouchFish-<版本>-win64.zip`，不需要 Git Bash 或 Python：
+Windows 直接双击 `scripts\package.bat`（这个文件刻意只写 ASCII、且用 CRLF 换行——`chcp 65001` 加中文再叠上 LF，cmd 会把注释行拆成乱码命令，实测报 `'t' is not recognized`；`.gitattributes` 已给 `*.bat` 钉死 `eol=crlf`，别改成中文）——会跑 `cargo build --release`，把 exe、README 和样书收进 `dist\TouchFish-<版本>-win64.zip`，不需要 Git Bash 或 Python：
 
 ```bat
 scripts\package.bat               :: 编译 release 并打包

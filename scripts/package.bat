@@ -1,14 +1,16 @@
 @echo off
-chcp 65001 >nul
+rem Build a distributable zip on Windows without Git Bash or Python.
+rem
+rem   scripts\package.bat              build release and package
+rem   scripts\package.bat --no-build   reuse existing binary, repackage only
+rem   scripts\package.bat --clean      wipe dist\ before packaging
+rem
+rem Keep this file ASCII-only and CRLF: cmd.exe misparses UTF-8 text with LF
+rem line endings, and a Chinese rem/echo line can get cut into a bogus command.
+
 setlocal enabledelayedexpansion
 cd /d "%~dp0.."
 set "ROOT=%CD%"
-
-rem 打一个可以直接发给别人的压缩包（Windows 一键版，不需要 Git Bash / Python）
-rem
-rem   scripts\package.bat              编译 release 并打包
-rem   scripts\package.bat --no-build   复用已有产物，只重新打包
-rem   scripts\package.bat --clean      打包前清掉 dist\
 
 if /i "%~1"=="-h" goto usage
 if /i "%~1"=="--help" goto usage
@@ -16,11 +18,11 @@ if /i "%~1"=="--help" goto usage
 set "PATH=%USERPROFILE%\.cargo\bin;%PATH%"
 where cargo >nul 2>nul
 if errorlevel 1 (
-  echo 找不到 cargo，请先安装 Rust 或把 %%USERPROFILE%%\.cargo\bin 加进 PATH。
+  echo cargo not found. Install Rust, or add %%USERPROFILE%%\.cargo\bin to PATH.
   goto fail
 )
 
-rem 版本号唯一来源：scripts\version.txt
+rem Version comes from scripts\version.txt - the single source of truth.
 set "VERSION="
 if exist "%ROOT%\scripts\version.txt" set /p VERSION=<"%ROOT%\scripts\version.txt"
 if not defined VERSION set "VERSION=0.0.0"
@@ -31,7 +33,7 @@ set "ZIP=%ROOT%\dist\!NAME!.zip"
 set "BIN=%ROOT%\target\release\touchfish.exe"
 
 echo.
-echo === TouchFish !VERSION! · win64 ===
+echo === TouchFish !VERSION! win64 ===
 
 if /i "%~1"=="--clean" (
   if exist "%ROOT%\dist" rmdir /s /q "%ROOT%\dist"
@@ -45,7 +47,8 @@ if errorlevel 1 goto fail
 
 :checkbin
 if not exist "%BIN%" (
-  echo 没有找到 %BIN%，去掉 --no-build 重新跑一次。
+  echo Binary not found: %BIN%
+  echo Run without --no-build to build it first.
   goto fail
 )
 
@@ -64,18 +67,18 @@ if exist "%ROOT%\samples" (
 
 set "COMMIT="
 for /f "delims=" %%c in ('git rev-parse --short HEAD 2^>nul') do set "COMMIT=%%c"
-if not defined COMMIT set "COMMIT=(无 git 信息)"
+if not defined COMMIT set "COMMIT=(no git info)"
 
 > "%STAGE%\VERSION.txt" (
   echo TouchFish !VERSION!
-  echo 构建平台  win64
-  echo 构建时间  %DATE% %TIME%
-  echo 提交      !COMMIT!
+  echo Platform  win64
+  echo Built     %DATE% %TIME%
+  echo Commit    !COMMIT!
 )
 
 if exist "%ZIP%" del /q "%ZIP%"
 echo.
-echo ^> 压缩 dist\!NAME!.zip
+echo ^> compress dist\!NAME!.zip
 powershell -NoProfile -ExecutionPolicy Bypass -Command "Add-Type -AssemblyName System.IO.Compression.FileSystem; if (Test-Path -LiteralPath '%ZIP%') { Remove-Item -LiteralPath '%ZIP%' -Force }; [System.IO.Compression.ZipFile]::CreateFromDirectory('%STAGE%', '%ZIP%', [System.IO.Compression.CompressionLevel]::Optimal, $true, [System.Text.Encoding]::UTF8)"
 if errorlevel 1 goto fail
 if not exist "%ZIP%" goto fail
@@ -85,23 +88,23 @@ set "SHA="
 for /f "delims=" %%h in ('powershell -NoProfile -Command "(Get-FileHash -LiteralPath '%ZIP%' -Algorithm SHA256).Hash"') do set "SHA=%%h"
 
 echo.
-echo   压缩包   dist\!NAME!.zip  ^(!ZIPSIZE! 字节^)
+echo   archive  dist\!NAME!.zip  ^(!ZIPSIZE! bytes^)
 if defined SHA echo   SHA256   !SHA!
 echo.
-echo   解压后双击 touchfish.exe 即可运行；想用浏览器版就在托盘菜单里点「打开网页页面」。
-echo   数据（书库、进度、设置）在 %%APPDATA%%\TouchFish，删掉即彻底卸载。
+echo   Unzip and run touchfish.exe. For the browser view use the tray menu
+echo   ("open web page"). Data lives in %%APPDATA%%\TouchFish.
 if "%~1"=="" pause
 exit /b 0
 
 :fail
 echo.
-echo 打包失败。
+echo Package failed.
 if "%~1"=="" pause
 exit /b 1
 
 :usage
-echo 用法：
-echo   scripts\package.bat              编译 release 并打包
-echo   scripts\package.bat --no-build   复用已有产物，只重新打包
-echo   scripts\package.bat --clean      打包前清掉 dist\
+echo Usage:
+echo   scripts\package.bat              build release and package
+echo   scripts\package.bat --no-build   reuse existing binary, repackage only
+echo   scripts\package.bat --clean      wipe dist\ before packaging
 exit /b 0

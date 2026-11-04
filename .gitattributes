@@ -5,3 +5,5 @@
 *.rgba binary
 *.ico binary
 *.epub binary
+# 批处理必须 CRLF：cmd.exe 解析 LF 文件时会在中文行处断行
+*.bat text eol=crlf
