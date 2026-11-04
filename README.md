@@ -6,6 +6,12 @@
 
 **v0.7**：Rust 后端 + 两种前端形态（原生窗口 / 普通网页）+ 书库界面。EPUB / MOBI / TXT 解析已打通，13 套站点皮肤、8 个行业主题包、3 种版式全部接入。
 
+<p align="center"><img src="docs/img/screen-1.png"  alt="TouchFish screen-1"></p>
+
+<p align="center"><img src="docs/img/screen-2.png"  alt="TouchFish screen-2"></p>
+
+<p align="center"><img src="docs/img/screen-3.png"  alt="TouchFish screen-3"></p>
+
 ## 两种打开方式
 
 同一套界面、同一份数据，两种前端形态，随时可以换：
