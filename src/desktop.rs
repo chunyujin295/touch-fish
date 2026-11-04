@@ -27,7 +27,7 @@ use tao::dpi::{PhysicalPosition, PhysicalSize};
 use tao::event::{Event, WindowEvent};
 use tao::event_loop::{ControlFlow, EventLoopBuilder, EventLoopProxy};
 use tao::window::{Icon, Window, WindowBuilder};
-use tray_icon::menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem};
+use tray_icon::menu::{CheckMenuItem, Menu, MenuEvent, MenuItem, PredefinedMenuItem};
 use tray_icon::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use wry::{WebContext, WebViewBuilder};
 
@@ -236,6 +236,19 @@ fn show_window(window: &Window) {
     window.set_focus();
 }
 
+/// 让托盘菜单的勾选跟上窗口状态。统一放在事件循环的 MainEventsCleared 里同步，
+/// 比在每个 hide/show 分支各写一遍更不容易漏（Esc、热键、托盘左键、点网页菜单…共六条路径）。
+fn sync_tray_check(item: Option<&CheckMenuItem>, window: &Window) {
+    if let Some(item) = item {
+        let visible = window.is_visible();
+        if item.is_checked() != visible {
+            item.set_checked(visible);
+            #[cfg(debug_assertions)]
+            eprintln!("[tray] 「打开主页面」勾选 = {visible}");
+        }
+    }
+}
+
 fn env_flag(name: &str, default: bool) -> bool {
     match std::env::var(name) {
         Ok(v) => !(v == "0" || v.eq_ignore_ascii_case("false")),
@@ -248,9 +261,14 @@ fn env_flag(name: &str, default: bool) -> bool {
 ///
 /// 菜单是并列三项而不是一个"显示/收起"：收起这件事左键已经做了，
 /// 菜单要回答的是"现在想用哪种前端"——主窗口，还是浏览器标签页。
-fn build_tray(proxy: EventLoopProxy<UserEvent>, label: &str) -> Option<tray_icon::TrayIcon> {
+fn build_tray(
+    proxy: EventLoopProxy<UserEvent>,
+    label: &str,
+) -> Option<(tray_icon::TrayIcon, CheckMenuItem)> {
     let menu = Menu::new();
-    let open_win = MenuItem::with_id("open-window", "打开主页面", true, None);
+    // 「打开主页面」前面带勾：窗口现在是收起的还是已经开着，一眼能看出来。
+    // 勾选状态由事件循环里的 MainEventsCleared 同步（见 sync_tray_check）。
+    let open_win = CheckMenuItem::with_id("open-window", "打开主页面", true, true, None);
     let open_web = MenuItem::with_id("open-web", "打开网页页面", true, None);
     let sep = PredefinedMenuItem::separator();
     let quit = MenuItem::with_id("quit", "退出", true, None);
@@ -299,7 +317,7 @@ fn build_tray(proxy: EventLoopProxy<UserEvent>, label: &str) -> Option<tray_icon
         let _ = menu_proxy.send_event(ev);
     }));
 
-    Some(tray)
+    Some((tray, open_win))
 }
 
 /// 全局热键的按下事件永远走这一条：解成 Toggle，交给 UI 线程决定收起还是唤出。
@@ -407,10 +425,13 @@ pub fn run(
         eprintln!("[warn] 全局热键 {label} 注册失败（写法不对或被其他软件占用）");
     }
 
-    let tray_guard = if tray_on && env_flag("TOUCHFISH_TRAY", true) {
-        build_tray(event_loop.create_proxy(), if hotkey_ok { &label } else { "" })
+    let (tray_guard, tray_check) = if tray_on && env_flag("TOUCHFISH_TRAY", true) {
+        match build_tray(event_loop.create_proxy(), if hotkey_ok { &label } else { "" }) {
+            Some((tray, item)) => (Some(tray), Some(item)),
+            None => (None, None),
+        }
     } else {
-        None
+        (None, None)
     };
 
     // 只要还有一个"能把窗口叫回来"的入口，Esc 就只收起；两个都没有才退回退出
@@ -550,6 +571,7 @@ pub fn run(
                     show_window(&window);
                 }
             }
+            Event::MainEventsCleared => sync_tray_check(tray_check.as_ref(), &window),
             _ => {}
         }
     });
